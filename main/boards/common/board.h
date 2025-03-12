@@ -11,6 +11,7 @@
 
 void* create_board();
 class AudioCodec;
+class OpusCodec;
 class Display;
 class Board {
 private:
@@ -37,6 +38,7 @@ public:
     virtual Led* GetLed();
     virtual AudioCodec* GetAudioCodec() = 0;
     virtual Display* GetDisplay();
+    virtual OpusCodec* GetOpusCodec();
     virtual Http* CreateHttp() = 0;
     virtual WebSocket* CreateWebSocket() = 0;
     virtual Mqtt* CreateMqtt() = 0;

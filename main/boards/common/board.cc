@@ -2,6 +2,7 @@
 #include "system_info.h"
 #include "settings.h"
 #include "display/no_display.h"
+#include "opus_codecs/opus_codec.h"
 
 #include <esp_log.h>
 #include <esp_ota_ops.h>
@@ -50,6 +51,11 @@ bool Board::GetBatteryLevel(int &level, bool& charging) {
 Display* Board::GetDisplay() {
     static NoDisplay display;
     return &display;
+}
+
+OpusCodec* Board::GetOpusCodec() {
+    static OpusCodec opus_codec;
+    return &opus_codec;
 }
 
 Led* Board::GetLed() {

@@ -9,8 +9,6 @@
 #include <mutex>
 #include <list>
 
-#include <opus_encoder.h>
-#include <opus_decoder.h>
 #include <opus_resampler.h>
 
 #include "protocol.h"
@@ -89,13 +87,11 @@ private:
     std::chrono::steady_clock::time_point last_output_time_;
     std::list<std::vector<uint8_t>> audio_decode_queue_;
 
-    std::unique_ptr<OpusEncoderWrapper> opus_encoder_;
-    std::unique_ptr<OpusDecoderWrapper> opus_decoder_;
-
     int opus_decode_sample_rate_ = -1;
+#if CONFIG_USE_AUDIO_PROCESSING
     OpusResampler input_resampler_;
     OpusResampler reference_resampler_;
-    OpusResampler output_resampler_;
+#endif
 
     void MainLoop();
     void InputAudio();

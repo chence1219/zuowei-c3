@@ -5,6 +5,7 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "audio_codecs/es8388_audio_codec.cc"
             "audio_codecs/cores3_audio_codec.cc"
             "audio_codecs/tcircles3_audio_codec.cc"
+            "opus_codecs/opus_codec.cc"
             "led/single_led.cc"
             "led/circular_strip.cc"
             "display/display.cc"
@@ -23,7 +24,7 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "main.cc"
             )
 
-set(INCLUDE_DIRS "." "display" "audio_codecs" "protocols" "audio_processing")
+set(INCLUDE_DIRS "." "display" "audio_codecs" "opus_codecs" "protocols" "audio_processing")
 
 # 添加 IOT 相关文件
 file(GLOB IOT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/iot/things/*.cc)
@@ -101,6 +102,10 @@ elseif(CONFIG_BOARD_TYPE_XINGZHI_Cube_OLED)
     set(BOARD_TYPE "xingzhi-cube-oled")
 elseif(CONFIG_BOARD_TYPE_XINGZHI_Cube_TFT)
     set(BOARD_TYPE "xingzhi-cube-tft")
+elseif(CONFIG_BOARD_TYPE_DOIT_ESP_VB6824)
+    set(BOARD_TYPE "doit-esp-vb6824")
+elseif(CONFIG_BOARD_TYPE_DOIT_ESP_VB6824_LCD)
+    set(BOARD_TYPE "doit-esp-vb6824-lcd")
 endif()
 file(GLOB BOARD_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc)
 list(APPEND SOURCES ${BOARD_SOURCES})
@@ -121,10 +126,23 @@ if(CONFIG_IDF_TARGET_ESP32)
     list(REMOVE_ITEM SOURCES "audio_codecs/box_audio_codec.cc"
                              "audio_codecs/cores3_audio_codec.cc"
                              "audio_codecs/es8388_audio_codec.cc")
+elseif(CONFIG_BOARD_TYPE_DOIT_ESP_VB6824 OR CONFIG_BOARD_TYPE_DOIT_ESP_VB6824_LCD)
+    list(APPEND SOURCES "audio_codecs/vb6824_audio_codec.cc" 
+                        "opus_codecs/no_opus_codec.cc"
+                        "opus_codecs/only_dec_opus_code.cc")
+    list(REMOVE_ITEM SOURCES "audio_codecs/box_audio_codec.cc"
+                            "audio_codecs/no_audio_codec.cc"
+                            "audio_codecs/box_audio_codec.cc"
+                            "audio_codecs/es8311_audio_codec.cc"
+                            "audio_codecs/es8388_audio_codec.cc"
+                            "audio_codecs/cores3_audio_codec.cc"
+                            "audio_codecs/tcircles3_audio_codec.cc")
 endif()
-
+if(CONFIG_AUDIO_CODEC_VB6824_TYPE_OPUS_16K_20MS)
+file(GLOB ASSETS ${CMAKE_CURRENT_SOURCE_DIR}/assets/zh_vb6824/*.p3)
+else()
 file(GLOB ASSETS ${CMAKE_CURRENT_SOURCE_DIR}/assets/zh/*.p3)
-
+endif()
 idf_component_register(SRCS ${SOURCES}
                     EMBED_FILES ${ASSETS}
                     INCLUDE_DIRS ${INCLUDE_DIRS}

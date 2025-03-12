@@ -20,11 +20,11 @@ public:
     virtual void EnableInput(bool enable);
     virtual void EnableOutput(bool enable);
 
-    void Start();
-    void OutputData(std::vector<int16_t>& data);
-    bool InputData(std::vector<int16_t>& data);
-    void OnOutputReady(std::function<bool()> callback);
-    void OnInputReady(std::function<bool()> callback);
+    virtual void Start();
+    virtual void OutputData(std::vector<int16_t>& data);
+    virtual bool InputData(std::vector<int16_t>& data);
+    virtual void OnOutputReady(std::function<bool()> callback);
+    virtual void OnInputReady(std::function<bool()> callback);
 
     inline bool duplex() const { return duplex_; }
     inline bool input_reference() const { return input_reference_; }
@@ -54,6 +54,7 @@ protected:
     int input_channels_ = 1;
     int output_channels_ = 1;
     int output_volume_ = 70;
+    int input_size_ = 0;
 
     virtual int Read(int16_t* dest, int samples) = 0;
     virtual int Write(const int16_t* data, int samples) = 0;

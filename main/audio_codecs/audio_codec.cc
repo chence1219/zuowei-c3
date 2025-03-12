@@ -58,6 +58,7 @@ void AudioCodec::Start() {
     Settings settings("audio", false);
     output_volume_ = settings.GetInt("output_volume", output_volume_);
 
+#ifndef CONFIG_IDF_TARGET_ESP32C2
     // 注册音频数据回调
     i2s_event_callbacks_t rx_callbacks = {};
     rx_callbacks.on_recv = on_recv;
@@ -69,6 +70,7 @@ void AudioCodec::Start() {
 
     ESP_ERROR_CHECK(i2s_channel_enable(tx_handle_));
     ESP_ERROR_CHECK(i2s_channel_enable(rx_handle_));
+#endif
 
     EnableInput(true);
     EnableOutput(true);

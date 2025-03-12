@@ -102,6 +102,10 @@ choice BOARD_TYPE
         bool "无名科技星智0.96"
     config BOARD_TYPE_XINGZHI_Cube_TFT
         bool "无名科技星智1.54"
+    config BOARD_TYPE_DOIT_ESP_VB6824
+        bool "doit-esp-vb6824"
+    config BOARD_TYPE_DOIT_ESP_VB6824_LCD
+        bool "doit-esp-vb6824-lcd"
 endchoice
 
 choice DISPLAY_OLED_TYPE
@@ -146,6 +150,40 @@ choice DISPLAY_LCD_TYPE
         bool "ILI9341, 分辨率240*320, 非IPS"    
     config LCD_CUSTOM
         bool "自定义屏幕参数"  
+endchoice
+
+choice AUDIO_CODEC_VB6824_TYPE
+    depends on BOARD_TYPE_DOIT_ESP_VB6824 || BOARD_TYPE_DOIT_ESP_VB6824_LCD
+    prompt "Audio Codec VB6924 Type"
+    default AUDIO_CODEC_VB6824_TYPE_OPUS_16K_20MS if IDF_TARGET_ESP32C2
+    default AUDIO_CODEC_VB6824_TYPE_PCM_16K
+    help
+        VB6824支持的类型
+    config AUDIO_CODEC_VB6824_TYPE_PCM_16K
+        depends on !IDF_TARGET_ESP32C2
+        bool "PCM 16K"
+    config AUDIO_CODEC_VB6824_TYPE_OPUS_16K_20MS
+        bool "OPUS 16K 20ms"
+    config AUDIO_CODEC_VB6824_TYPE_OPUS_16K_20MS_PCM_16K
+        bool "OPUS 16K 20ms(input) + PCM 16K(output)"
+endchoice
+
+choice OPUS_CODEC_TYPE
+    prompt "Opus Codec Type"
+    default OPUS_CODEC_TYPE_ONLY_DECODE if AUDIO_CODEC_VB6824_TYPE_OPUS_16K_20MS_PCM_16K
+    default OPUS_CODEC_TYPE_NO_CODEC if AUDIO_CODEC_VB6824_TYPE_OPUS_16K_20MS
+    default OPUS_CODEC_TYPE_ESP_OPUS
+    help
+        VB6824支持的类型
+    config OPUS_CODEC_TYPE_ESP_OPUS
+        depends on !AUDIO_CODEC_VB6824_TYPE_OPUS_16K_20MS && !AUDIO_CODEC_VB6824_TYPE_OPUS_16K_20MS_PCM_16K
+        bool "esp-opus"
+    config OPUS_CODEC_TYPE_NO_CODEC
+        depends on AUDIO_CODEC_VB6824_TYPE_OPUS_16K_20MS
+        bool "no codec"
+    config OPUS_CODEC_TYPE_ONLY_DECODE
+        depends on AUDIO_CODEC_VB6824_TYPE_OPUS_16K_20MS_PCM_16K
+        bool "only decode"
 endchoice
 
 config USE_AUDIO_PROCESSING
