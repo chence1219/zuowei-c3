@@ -8,6 +8,7 @@
 #include <string>
 
 #include "led/led.h"
+#include "backlight.h"
 
 void* create_board();
 class AudioCodec;
@@ -35,6 +36,7 @@ public:
     virtual ~Board() = default;
     virtual std::string GetBoardType() = 0;
     virtual std::string GetUuid() { return uuid_; }
+    virtual Backlight* GetBacklight() { return nullptr; }
     virtual Led* GetLed();
     virtual AudioCodec* GetAudioCodec() = 0;
     virtual Display* GetDisplay();
@@ -45,7 +47,7 @@ public:
     virtual Udp* CreateUdp() = 0;
     virtual void StartNetwork() = 0;
     virtual const char* GetNetworkStateIcon() = 0;
-    virtual bool GetBatteryLevel(int &level, bool& charging);
+    virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging);
     virtual std::string GetJson();
     virtual void SetPowerSaveMode(bool enabled) = 0;
 };

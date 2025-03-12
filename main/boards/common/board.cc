@@ -1,8 +1,9 @@
 #include "board.h"
 #include "system_info.h"
 #include "settings.h"
-#include "display/no_display.h"
 #include "opus_codecs/opus_codec.h"
+#include "display/display.h"
+#include "assets/lang_config.h"
 
 #include <esp_log.h>
 #include <esp_ota_ops.h>
@@ -18,7 +19,7 @@ Board::Board() {
         uuid_ = GenerateUuid();
         settings.SetString("uuid", uuid_);
     }
-    ESP_LOGI(TAG, "UUID: %s", uuid_.c_str());
+    ESP_LOGI(TAG, "UUID=%s SKU=%s", uuid_.c_str(), BOARD_NAME);
 }
 
 std::string Board::GenerateUuid() {
@@ -44,7 +45,7 @@ std::string Board::GenerateUuid() {
     return std::string(uuid_str);
 }
 
-bool Board::GetBatteryLevel(int &level, bool& charging) {
+bool Board::GetBatteryLevel(int &level, bool& charging, bool& discharging) {
     return false;
 }
 
@@ -105,6 +106,7 @@ std::string Board::GetJson() {
     */
     std::string json = "{";
     json += "\"version\":2,";
+    json += "\"language\":\"" + std::string(Lang::CODE) + "\",";
     json += "\"flash_size\":" + std::to_string(SystemInfo::GetFlashSize()) + ",";
     json += "\"minimum_free_heap_size\":" + std::to_string(SystemInfo::GetMinimumFreeHeapSize()) + ",";
     json += "\"mac_address\":\"" + SystemInfo::GetMacAddress() + "\",";

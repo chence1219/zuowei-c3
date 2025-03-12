@@ -7,5 +7,6 @@ sdkconfig.old
 sdkconfig
 dependencies.lock
 .env
-.DS_Store
 releases/
+main/assets/lang_config.h
+.DS_Store
