@@ -1,5 +1,4 @@
 tmp/
-components/
 managed_components/
 build/
 .vscode/
@@ -8,4 +7,5 @@ sdkconfig.old
 sdkconfig
 dependencies.lock
 .env
+.DS_Store
 releases/
