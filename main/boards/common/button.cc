@@ -8,7 +8,7 @@ Button::Button(const button_adc_config_t& adc_cfg) {
     button_config_t button_config = {
         .type = BUTTON_TYPE_ADC,
         .long_press_time = 1000,
-        .short_press_time = 50,
+        .short_press_time = 200,
         .adc_button_config = adc_cfg
     };
     button_handle_ = iot_button_create(&button_config);
@@ -106,6 +106,19 @@ void Button::OnDoubleClick(std::function<void()> callback) {
         Button* button = static_cast<Button*>(usr_data);
         if (button->on_double_click_) {
             button->on_double_click_();
+        }
+    }, this);
+}
+
+void Button::OnPressRepeat(std::function<void(uint16_t)> callback) {
+    if (button_handle_ == nullptr) {
+        return;
+    }
+    on_press_repeat_ = callback;
+    iot_button_register_cb(button_handle_, BUTTON_PRESS_REPEAT, [](void* handle, void* usr_data) {
+        Button* button = static_cast<Button*>(usr_data);
+        if (button->on_press_repeat_) {
+            button->on_press_repeat_(iot_button_get_repeat(button->button_handle_));
         }
     }, this);
 }
