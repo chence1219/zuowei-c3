@@ -386,13 +386,6 @@ void Application::Start() {
         Alert(Lang::Strings::ERROR, message.c_str(), "sad", Lang::Sounds::P3_EXCLAMATION);
     });
     protocol_->OnIncomingAudio([this](std::vector<uint8_t>&& data) {
-        if(device_state_ == kDeviceStateSpeaking && audio_decode_queue_.size() > 15){
-#ifdef CONGIF_OPUS_CODEC_TYPE_NO_CODEC
-            vTaskDelay(20 / portTICK_PERIOD_MS);
-#else
-            vTaskDelay(60 / portTICK_PERIOD_MS);
-#endif
-        }
         std::lock_guard<std::mutex> lock(mutex_);
         if (device_state_ == kDeviceStateSpeaking) {
             audio_decode_queue_.emplace_back(std::move(data));
