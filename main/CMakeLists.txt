@@ -125,10 +125,10 @@ elseif(CONFIG_BOARD_TYPE_SENSECAP_WATCHER)
     set(BOARD_TYPE "sensecap-watcher")
 elseif(CONFIG_BOARD_TYPE_ESP32_CGC)
     set(BOARD_TYPE "esp32-cgc")  
-elseif(CONFIG_BOARD_TYPE_DOIT_ESP_VB6824)
-    set(BOARD_TYPE "doit-esp-vb6824")
-elseif(CONFIG_BOARD_TYPE_DOIT_ESP_VB6824_LCD)
-    set(BOARD_TYPE "doit-esp-vb6824-lcd")
+elseif(CONFIG_BOARD_TYPE_DOIT_AI_01_KIT)
+    set(BOARD_TYPE "doit-ai-01-kit")
+elseif(CONFIG_BOARD_TYPE_DOIT_AI_01_KIT_LCD)
+    set(BOARD_TYPE "doit-ai-01-kit-lcd")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
@@ -163,11 +163,7 @@ endif()
 # 定义生成路径
 set(LANG_JSON "${CMAKE_CURRENT_SOURCE_DIR}/assets/${LANG_DIR}/language.json")
 set(LANG_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/assets/lang_config.h")
-if(CONFIG_AUDIO_CODEC_VB6824_TYPE_OPUS_16K_20MS)
-file(GLOB LANG_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/zh_vb6824/*.p3)
-else()
 file(GLOB LANG_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/${LANG_DIR}/*.p3)
-endif()
 file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/common/*.p3)
 
 # 如果目标芯片是 ESP32，则排除特定文件
@@ -176,7 +172,7 @@ if(CONFIG_IDF_TARGET_ESP32)
                              "audio_codecs/es8388_audio_codec.cc"
                              "led/gpio_led.cc"
                              )
-elseif(CONFIG_BOARD_TYPE_DOIT_ESP_VB6824 OR CONFIG_BOARD_TYPE_DOIT_ESP_VB6824_LCD)
+elseif(CONFIG_BOARD_TYPE_DOIT_AI_01_KIT OR CONFIG_BOARD_TYPE_DOIT_AI_01_KIT_LCD)
     list(APPEND SOURCES "audio_codecs/vb6824_audio_codec.cc" 
                         "opus_codecs/no_opus_codec.cc"
                         "opus_codecs/only_dec_opus_code.cc")
@@ -184,9 +180,7 @@ elseif(CONFIG_BOARD_TYPE_DOIT_ESP_VB6824 OR CONFIG_BOARD_TYPE_DOIT_ESP_VB6824_LC
                             "audio_codecs/no_audio_codec.cc"
                             "audio_codecs/box_audio_codec.cc"
                             "audio_codecs/es8311_audio_codec.cc"
-                            "audio_codecs/es8388_audio_codec.cc"
-                            "audio_codecs/cores3_audio_codec.cc"
-                            "audio_codecs/tcircles3_audio_codec.cc")
+                            "audio_codecs/es8388_audio_codec.cc")
 endif()
 
 idf_component_register(SRCS ${SOURCES}

@@ -146,10 +146,10 @@ choice BOARD_TYPE
         bool "无名科技星智1.54(ML307)"
     config BOARD_TYPE_SENSECAP_WATCHER
         bool "SenseCAP Watcher"
-    config BOARD_TYPE_DOIT_ESP_VB6824
-        bool "doit-esp-vb6824"
-    config BOARD_TYPE_DOIT_ESP_VB6824_LCD
-        bool "doit-esp-vb6824-lcd"
+    config BOARD_TYPE_DOIT_AI_01_KIT
+        bool "Doit-AI-01-Kit"
+    config BOARD_TYPE_DOIT_AI_01_KIT_LCD
+        bool "Doit-AI-01-Kit-lcd"
 endchoice
 
 choice DISPLAY_OLED_TYPE
@@ -203,17 +203,15 @@ choice DISPLAY_LCD_TYPE
 endchoice
 
 choice AUDIO_CODEC_VB6824_TYPE
-    depends on BOARD_TYPE_DOIT_ESP_VB6824 || BOARD_TYPE_DOIT_ESP_VB6824_LCD
+    depends on BOARD_TYPE_DOIT_AI_01_KIT || BOARD_TYPE_DOIT_AI_01_KIT_LCD
     prompt "Audio Codec VB6924 Type"
-    default AUDIO_CODEC_VB6824_TYPE_OPUS_16K_20MS if IDF_TARGET_ESP32C2
+    default AUDIO_CODEC_VB6824_TYPE_OPUS_16K_20MS_PCM_16K if IDF_TARGET_ESP32C2
     default AUDIO_CODEC_VB6824_TYPE_PCM_16K
     help
         VB6824支持的类型
     config AUDIO_CODEC_VB6824_TYPE_PCM_16K
         depends on !IDF_TARGET_ESP32C2
         bool "PCM 16K"
-    config AUDIO_CODEC_VB6824_TYPE_OPUS_16K_20MS
-        bool "OPUS 16K 20ms"
     config AUDIO_CODEC_VB6824_TYPE_OPUS_16K_20MS_PCM_16K
         bool "OPUS 16K 20ms(input) + PCM 16K(output)"
 endchoice
@@ -221,16 +219,12 @@ endchoice
 choice OPUS_CODEC_TYPE
     prompt "Opus Codec Type"
     default OPUS_CODEC_TYPE_ONLY_DECODE if AUDIO_CODEC_VB6824_TYPE_OPUS_16K_20MS_PCM_16K
-    default OPUS_CODEC_TYPE_NO_CODEC if AUDIO_CODEC_VB6824_TYPE_OPUS_16K_20MS
     default OPUS_CODEC_TYPE_ESP_OPUS
     help
-        VB6824支持的类型
+        OPUS编解码的类型
     config OPUS_CODEC_TYPE_ESP_OPUS
-        depends on !AUDIO_CODEC_VB6824_TYPE_OPUS_16K_20MS && !AUDIO_CODEC_VB6824_TYPE_OPUS_16K_20MS_PCM_16K
+        depends on !AUDIO_CODEC_VB6824_TYPE_OPUS_16K_20MS_PCM_16K
         bool "esp-opus"
-    config OPUS_CODEC_TYPE_NO_CODEC
-        depends on AUDIO_CODEC_VB6824_TYPE_OPUS_16K_20MS
-        bool "no codec"
     config OPUS_CODEC_TYPE_ONLY_DECODE
         depends on AUDIO_CODEC_VB6824_TYPE_OPUS_16K_20MS_PCM_16K
         bool "only decode"

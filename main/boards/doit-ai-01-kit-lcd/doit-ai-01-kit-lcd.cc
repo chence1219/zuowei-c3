@@ -30,17 +30,14 @@ private:
     LcdDisplay* display;
 
     void InitializeButtons() {
-        boot_button_.OnDoubleClick([this]() {
-            // auto& app = Application::GetInstance();
-            // if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+        boot_button_.OnClick([this]() {
+            auto &app = Application::GetInstance();
+            app.ToggleChatState();
+        });
+        boot_button_.OnPressRepeat([this](uint16_t count) {
+            if(count >= 3){
                 ResetWifiConfiguration();
-            // }
-        });
-        boot_button_.OnPressDown([this]() {
-            Application::GetInstance().StartListening();
-        });
-        boot_button_.OnPressUp([this]() {
-            Application::GetInstance().StopListening();
+            }
         });
     }
 
@@ -48,6 +45,7 @@ private:
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("Backlight"));
     }
 
     void InitializeSpi() {
@@ -105,6 +103,7 @@ public:
         InitializeIot();
         InitializeSpi();
         InitializeLcdDisplay();
+        GetBacklight()->RestoreBrightness();
         audio_codec.OnWakeUp([this](const std::string& command) {
             if (command == "你好小智"){
                 if(Application::GetInstance().GetDeviceState() != kDeviceStateListening){
