@@ -3,6 +3,8 @@
 
 #include "opus_codec.h"
 
+#include "sdkconfig.h"
+
 #include <vector>
 #include <cstdint>
 
