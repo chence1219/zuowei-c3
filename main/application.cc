@@ -633,45 +633,44 @@ void Application::OutputAudio() {
     const int max_silence_seconds = 10;
 
     std::unique_lock<std::mutex> lock(mutex_, std::defer_lock);
-    while(1){
-        lock.lock();
-        if (audio_decode_queue_.empty()) {
-            // Disable the output if there is no audio data for a long time
-            if (device_state_ == kDeviceStateIdle) {
-                auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - last_output_time_).count();
-                if (duration > max_silence_seconds) {
-                    codec->EnableOutput(false);
-                }
+
+    lock.lock();
+    if (audio_decode_queue_.empty()) {
+        // Disable the output if there is no audio data for a long time
+        if (device_state_ == kDeviceStateIdle) {
+            auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - last_output_time_).count();
+            if (duration > max_silence_seconds) {
+                codec->EnableOutput(false);
             }
-            return;
         }
-
-        if (device_state_ == kDeviceStateListening) {
-            audio_decode_queue_.clear();
-            return;
-        }
-
-        last_output_time_ = now;
-        auto opus = std::move(audio_decode_queue_.front());
-        audio_decode_queue_.pop_front();
-        lock.unlock();
-
-        background_task_->Schedule([this, codec, opus = std::move(opus)]() mutable {
-            if (aborted_) {
-                return;
-            }
-            int resample = -1;
-            std::vector<int16_t> pcm; 
-            auto opus_codec = Board::GetInstance().GetOpusCodec();
-            if (opus_decode_sample_rate_ != codec->output_sample_rate()) {
-                resample = codec->output_sample_rate();
-            }
-            if (!opus_codec->Decode(std::move(opus), pcm, resample)) {
-                return;
-            }
-            codec->OutputData(pcm);
-        });
+        return;
     }
+
+    if (device_state_ == kDeviceStateListening) {
+        audio_decode_queue_.clear();
+        return;
+    }
+
+    last_output_time_ = now;
+    auto opus = std::move(audio_decode_queue_.front());
+    audio_decode_queue_.pop_front();
+    lock.unlock();
+
+    background_task_->Schedule([this, codec, opus = std::move(opus)]() mutable {
+        if (aborted_) {
+            return;
+        }
+        int resample = -1;
+        std::vector<int16_t> pcm; 
+        auto opus_codec = Board::GetInstance().GetOpusCodec();
+        if (opus_decode_sample_rate_ != codec->output_sample_rate()) {
+            resample = codec->output_sample_rate();
+        }
+        if (!opus_codec->Decode(std::move(opus), pcm, resample)) {
+            return;
+        }
+        codec->OutputData(pcm);
+    });
 }
 
 void Application::InputAudio() {
