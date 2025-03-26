@@ -58,7 +58,6 @@ VbAduioCodec::VbAduioCodec(gpio_num_t tx, gpio_num_t rx) {
 void VbAduioCodec::Start() {
     Settings settings("audio", false);
     output_volume_ = settings.GetInt("output_volume", output_volume_);
-    SetOutputVolume(output_volume_);
 
     EnableInput(true);
     EnableOutput(true);
@@ -135,6 +134,10 @@ int VbAduioCodec::Read(int16_t* dest, int samples) {
 }
 
 int VbAduioCodec::Write(const int16_t* data, int samples) {
+    if(frist_volume_is_set == false){
+        frist_volume_is_set = true;
+        SetOutputVolume(output_volume_);
+    }
     vb6824_audio_write((uint8_t *)data, 2 * samples);
     return samples;
 }
