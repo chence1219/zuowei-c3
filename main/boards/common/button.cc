@@ -19,13 +19,14 @@ Button::Button(const button_adc_config_t& adc_cfg) {
 }
 #endif
 
-Button::Button(gpio_num_t gpio_num, bool active_high) : gpio_num_(gpio_num) {
+Button::Button(gpio_num_t gpio_num, bool active_high, int long_press_time) : gpio_num_(gpio_num) {
     if (gpio_num == GPIO_NUM_NC) {
         return;
     }
+
     button_config_t button_config = {
         .type = BUTTON_TYPE_GPIO,
-        .long_press_time = 1000,
+        .long_press_time = (uint16_t)long_press_time,
         .short_press_time = 200,
         .gpio_button_config = {
             .gpio_num = gpio_num,
