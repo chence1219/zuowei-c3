@@ -150,6 +150,8 @@ choice BOARD_TYPE
         bool "Doit-AI-01-Kit"
     config BOARD_TYPE_DOIT_AI_01_KIT_LCD
         bool "Doit-AI-01-Kit-lcd"
+    config BOARD_TYPE_DOIT_AI_01_KIT_LCD_REMOTE
+        bool "Doit-AI-01-Kit-lcd-remote"
 endchoice
 
 choice DISPLAY_OLED_TYPE
@@ -204,7 +206,7 @@ endchoice
 
 choice OPUS_CODEC_TYPE
     prompt "Opus Codec Type"
-    default OPUS_CODEC_TYPE_ONLY_DECODE if (BOARD_TYPE_DOIT_AI_01_KIT || BOARD_TYPE_DOIT_AI_01_KIT_LCD)
+    default OPUS_CODEC_TYPE_ONLY_DECODE if (BOARD_TYPE_DOIT_AI_01_KIT || BOARD_TYPE_DOIT_AI_01_KIT_LCD || BOARD_TYPE_DOIT_AI_01_KIT_LCD_REMOTE)
     default OPUS_CODEC_TYPE_ESP_OPUS
     help
         OPUS编解码的类型
@@ -212,7 +214,7 @@ choice OPUS_CODEC_TYPE
         depends on !AUDIO_CODEC_VB6824_TYPE_OPUS_16K_20MS_PCM_16K
         bool "esp-opus"
     config OPUS_CODEC_TYPE_ONLY_DECODE
-        depends on BOARD_TYPE_DOIT_AI_01_KIT || BOARD_TYPE_DOIT_AI_01_KIT_LCD
+        depends on BOARD_TYPE_DOIT_AI_01_KIT || BOARD_TYPE_DOIT_AI_01_KIT_LCD || BOARD_TYPE_DOIT_AI_01_KIT_LCD_REMOTE
         bool "only decode"
 endchoice
 
