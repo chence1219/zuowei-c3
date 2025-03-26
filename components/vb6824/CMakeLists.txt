@@ -2,7 +2,7 @@ set(incs )
 set(srcs )
 
 list(APPEND srcs
-        frame_parser.c
+        vb6824.c
         )
 
 list(APPEND incs
@@ -11,4 +11,4 @@ list(APPEND incs
 
 idf_component_register(SRCS "${srcs}"
                             INCLUDE_DIRS "${incs}"
-                            REQUIRES rbuffer )
+                            REQUIRES driver )
