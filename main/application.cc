@@ -245,6 +245,22 @@ void Application::PlaySound(const std::string_view& sound) {
     }
 }
 
+void Application::Close() {
+    if (device_state_ == kDeviceStateActivating) {
+        SetDeviceState(kDeviceStateIdle);
+        return;
+    }
+
+    if (!protocol_) {
+        ESP_LOGE(TAG, "Protocol not initialized");
+        return;
+    }
+
+    Schedule([this]() {
+        protocol_->CloseAudioChannel();
+    });
+}
+
 void Application::ToggleChatState() {
     if (device_state_ == kDeviceStateActivating) {
         SetDeviceState(kDeviceStateIdle);
