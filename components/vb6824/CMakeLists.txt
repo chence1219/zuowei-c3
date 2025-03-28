@@ -11,4 +11,4 @@ list(APPEND incs
 
 idf_component_register(SRCS "${srcs}"
                             INCLUDE_DIRS "${incs}"
-                            REQUIRES driver )
+                            REQUIRES driver esp_timer)
