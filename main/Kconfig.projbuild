@@ -51,7 +51,7 @@ config WEBSOCKET_ACCESS_TOKEN
 
 config BOARD_PATH
     string "Board Path"
-    default "../../firmware/zuowei/zuowei-c3-lcd-pwr"
+    default "../../firmware/doit/doit-ai-01-kit"
     help
         Board Path
 
