@@ -11,7 +11,9 @@ OnlyDecOpusCodec::OnlyDecOpusCodec() {
 }
 
 OnlyDecOpusCodec::~OnlyDecOpusCodec() {
-    
+#ifdef CONFIG_OPUS_CODEC_TYPE_ONLY_DECODE
+    opus_decoder_.reset();
+#endif
 }
 
 void OnlyDecOpusCodec::EncodeConfig(int sample_rate, int channels, int duration_ms){

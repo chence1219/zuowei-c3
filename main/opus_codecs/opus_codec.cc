@@ -15,7 +15,10 @@ OpusCodec::OpusCodec() {
 }
 
 OpusCodec::~OpusCodec() {
-    
+#ifdef CONFIG_OPUS_CODEC_TYPE_ESP_OPUS
+    opus_encoder_.reset();
+    opus_decoder_.reset();
+#endif
 }
 
 void OpusCodec::EncodeConfig(int sample_rate, int channels, int duration_ms){
