@@ -131,6 +131,8 @@ elseif(CONFIG_BOARD_TYPE_DOIT_AI_01_KIT)
     set(BOARD_TYPE "doit-ai-01-kit")
 elseif(CONFIG_BOARD_TYPE_DOIT_AI_01_KIT_LCD)
     set(BOARD_TYPE "doit-ai-01-kit-lcd")
+elseif(CONFIG_BOARD_TYPE_DOIT_AI_01_KIT_LCD_REMOTE)
+    set(BOARD_TYPE "doit-ai-01-kit-lcd-remote")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
@@ -174,7 +176,7 @@ if(CONFIG_IDF_TARGET_ESP32)
                              "audio_codecs/es8388_audio_codec.cc"
                              "led/gpio_led.cc"
                              )
-elseif(CONFIG_BOARD_TYPE_DOIT_AI_01_KIT OR CONFIG_BOARD_TYPE_DOIT_AI_01_KIT_LCD)
+elseif(CONFIG_BOARD_TYPE_DOIT_AI_01_KIT OR CONFIG_BOARD_TYPE_DOIT_AI_01_KIT_LCD OR CONFIG_BOARD_TYPE_DOIT_AI_01_KIT_LCD_REMOTE)
     list(APPEND SOURCES "audio_codecs/vb6824_audio_codec.cc" 
                         "opus_codecs/no_opus_codec.cc"
                         "opus_codecs/only_dec_opus_code.cc")
