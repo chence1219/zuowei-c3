@@ -18,6 +18,11 @@
 #include "font_awesome_symbols.h"
 #include "settings.h"
 
+#include <wifi_station.h>
+#include <wifi_configuration_ap.h>
+#include <ssid_manager.h>
+#include "assets/lang_config.h"
+
 #define TAG "CustomBoard"
 
 LV_FONT_DECLARE(font_puhui_14_1);
@@ -28,6 +33,7 @@ private:
     Button boot_button_;
     VbAduioCodec audio_codec;
     LcdDisplay* display;
+    OpusCodec* opus_codec = nullptr;
 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
@@ -68,7 +74,11 @@ private:
         io_config.cs_gpio_num = DISPLAY_CS_PIN;
         io_config.dc_gpio_num = DISPLAY_DC_PIN;
         io_config.spi_mode = 3;
+#ifdef CONFIG_IDF_TARGET_ESP32C2
+        io_config.pclk_hz = 40 * 1000 * 1000;
+#else
         io_config.pclk_hz = 80 * 1000 * 1000;
+#endif
         io_config.trans_queue_depth = 10;
         io_config.lcd_cmd_bits = 8;
         io_config.lcd_param_bits = 8;
@@ -120,14 +130,16 @@ public:
     }
 
     virtual OpusCodec* GetOpusCodec() override {
+        if(opus_codec == nullptr){
 #if defined(CONFIG_OPUS_CODEC_TYPE_NO_CODEC)
-        static NoOpusCodec opus_codec;
+            opus_codec = new NoOpusCodec();
 #elif defined(CONFIG_OPUS_CODEC_TYPE_ONLY_DECODE)
-        static OnlyDecOpusCodec opus_codec;
+            opus_codec = new OnlyDecOpusCodec();
 #else
-        static OpusCodec opus_codec;
+            opus_codec = new OpusCodec();
 #endif
-        return &opus_codec;
+        }
+        return opus_codec;
     }
 
     virtual Display* GetDisplay() override {
@@ -140,6 +152,40 @@ public:
             return &backlight;
         }
         return nullptr;
+    }
+
+    void EnterWifiConfigMode() {
+        auto& application = Application::GetInstance();
+        application.SetDeviceState(kDeviceStateWifiConfiguring);
+
+        auto& wifi_ap = WifiConfigurationAp::GetInstance();
+        wifi_ap.SetLanguage(Lang::CODE);
+        wifi_ap.SetSsidPrefix("Xiaozhi");
+        wifi_ap.Start();
+
+        // 显示 WiFi 配置 AP 的 SSID 和 Web 服务器 URL
+        std::string hint = Lang::Strings::CONNECT_TO_HOTSPOT;
+        hint += wifi_ap.GetSsid();
+        hint += Lang::Strings::ACCESS_VIA_BROWSER;
+        hint += wifi_ap.GetWebServerUrl();
+        hint += "\n\n";
+        
+        // 播报配置 WiFi 的提示
+        application.Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "", Lang::Sounds::P3_WIFICONFIG);
+
+        vTaskDelay(pdMS_TO_TICKS(3500));
+
+        //释放opus编码器的内存
+        delete opus_codec;
+        opus_codec = nullptr;
+        
+        // Wait forever until reset after configuration
+        while (true) {
+            int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+            int min_free_sram = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
+            ESP_LOGI(TAG, "Free internal: %u minimal internal: %u", free_sram, min_free_sram);
+            vTaskDelay(pdMS_TO_TICKS(10000));
+        }
     }
 };
 
