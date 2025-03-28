@@ -62,7 +62,7 @@ void VbAduioCodec::Start() {
     EnableInput(true);
     EnableOutput(true);
 
-    if(power_save_timer_ == nullptr){
+    if(ready_timer_ == nullptr){
         esp_timer_create_args_t timer_args = {
             .callback = [](void* arg) {
                 auto this_ = (VbAduioCodec*)arg;
@@ -77,10 +77,10 @@ void VbAduioCodec::Start() {
             .name = "vb_ready",
             .skip_unhandled_events = true,
         };
-        esp_timer_create(&timer_args, &power_save_timer_);
+        esp_timer_create(&timer_args, &ready_timer_);
     }
-    if(power_save_timer_){
-        esp_timer_start_periodic(power_save_timer_, 20*1000);
+    if(ready_timer_){
+        esp_timer_start_periodic(ready_timer_, 20*1000);
     }
 }
 
