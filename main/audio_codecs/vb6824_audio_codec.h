@@ -18,7 +18,7 @@ private:
     std::function<void(std::string)> on_wake_up_;
     std::function<bool()> on_input_ready_;
     std::function<bool()> on_output_ready_;
-    esp_timer_handle_t power_save_timer_ = nullptr;
+    esp_timer_handle_t ready_timer_ = nullptr;
     bool frist_volume_is_set = false;
 public:
     VbAduioCodec(gpio_num_t tx, gpio_num_t rx);
