@@ -591,8 +591,13 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_pad_all(status_bar_, 0, 0);
     lv_obj_set_style_border_width(status_bar_, 0, 0);
     lv_obj_set_style_pad_column(status_bar_, 0, 0);
+#ifdef CONFIG_UI_STATUS_BAR_PAD
+    lv_obj_set_style_pad_left(status_bar_, CONFIG_UI_STATUS_BAR_PAD, 0);
+    lv_obj_set_style_pad_right(status_bar_, CONFIG_UI_STATUS_BAR_PAD, 0);
+#else
     lv_obj_set_style_pad_left(status_bar_, 2, 0);
     lv_obj_set_style_pad_right(status_bar_, 2, 0);
+#endif
 
     network_label_ = lv_label_create(status_bar_);
     lv_label_set_text(network_label_, "");

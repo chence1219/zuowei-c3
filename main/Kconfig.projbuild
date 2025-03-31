@@ -78,6 +78,14 @@ config USE_WECHAT_MESSAGE_STYLE
     help
         使用微信聊天界面风格   
 
+menu "UI"
+    config UI_STATUS_BAR_PAD
+        int "Status Sar Pad"
+        default 2
+        help
+            状态栏左右间距  
+endmenu
+
 config USE_AUDIO_PROCESSOR
     bool "启用音频降噪、增益处理"
     default y
