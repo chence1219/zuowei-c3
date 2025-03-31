@@ -67,11 +67,15 @@ elseif(CONFIG_LANGUAGE_JA_JP)
 endif()
 
 # 定义生成路径
-set(LANG_JSON "${CMAKE_CURRENT_SOURCE_DIR}/assets/${LANG_DIR}/language.json")
-set(LANG_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/assets/lang_config.h")
-file(GLOB LANG_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/${LANG_DIR}/*.p3)
-file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/common/*.p3)
-
+if(NOT CONFIG_ASSETS_PATH)
+    set(CONFIG_ASSETS_PATH "assets")
+else()
+    list(APPEND INCLUDE_DIRS ${CONFIG_ASSETS_PATH}/..)
+endif()
+set(LANG_JSON "${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_ASSETS_PATH}/${LANG_DIR}/language.json")
+set(LANG_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_ASSETS_PATH}/lang_config.h")
+file(GLOB LANG_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_ASSETS_PATH}/${LANG_DIR}/*.p3)
+file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_ASSETS_PATH}/common/*.p3)
 
 list(APPEND SOURCES "audio_codecs/vb6824_audio_codec.cc" 
                     "opus_codecs/no_opus_codec.cc"

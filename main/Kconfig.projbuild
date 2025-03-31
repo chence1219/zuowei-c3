@@ -55,6 +55,12 @@ config BOARD_PATH
     help
         Board Path
 
+config ASSETS_PATH
+    string "Assets Path"
+    default "assets"
+    help
+        Assets Path
+
 choice OPUS_CODEC_TYPE
     prompt "Opus Codec Type"
     default OPUS_CODEC_TYPE_ONLY_DECODE
