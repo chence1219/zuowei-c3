@@ -99,4 +99,10 @@ config USE_WAKE_WORD_DETECT
     depends on IDF_TARGET_ESP32S3 && SPIRAM
     help
         需要 ESP32 S3 与 AFE 支持
+
+config SPEAKING_FIRST_MUTE_TIME
+    int "讲话之前静音时间"
+    default 0
+    help
+        讲话之前静音时间
 endmenu
