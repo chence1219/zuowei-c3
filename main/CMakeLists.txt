@@ -3,7 +3,6 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "audio_codecs/box_audio_codec.cc"
             "audio_codecs/es8311_audio_codec.cc"
             "audio_codecs/es8388_audio_codec.cc"
-            "opus_codecs/opus_codec.cc"
             "led/single_led.cc"
             "led/circular_strip.cc"
             "led/gpio_led.cc"
@@ -21,7 +20,7 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "main.cc"
             )
 
-set(INCLUDE_DIRS "." "display" "audio_codecs" "opus_codecs" "protocols" "audio_processing")
+set(INCLUDE_DIRS "." "display" "audio_codecs" "protocols" "audio_processing")
 
 # 添加 IOT 相关文件
 file(GLOB IOT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/iot/things/*.cc)
@@ -77,9 +76,7 @@ set(LANG_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_ASSETS_PATH}/lang_config.h
 file(GLOB LANG_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_ASSETS_PATH}/${LANG_DIR}/*.p3)
 file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_ASSETS_PATH}/common/*.p3)
 
-list(APPEND SOURCES "audio_codecs/vb6824_audio_codec.cc" 
-                    "opus_codecs/no_opus_codec.cc"
-                    "opus_codecs/only_dec_opus_code.cc")
+list(APPEND SOURCES "audio_codecs/vb6824_audio_codec.cc")
 list(REMOVE_ITEM SOURCES "audio_codecs/box_audio_codec.cc"
                         "audio_codecs/no_audio_codec.cc"
                         "audio_codecs/box_audio_codec.cc"

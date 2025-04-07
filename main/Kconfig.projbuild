@@ -6,7 +6,6 @@ config OTA_VERSION_URL
     help
         The application will access this URL to check for updates.
 
-
 choice
     prompt "语言选择"
     default LANGUAGE_ZH_CN
@@ -61,22 +60,11 @@ config ASSETS_PATH
     help
         Assets Path
 
-choice OPUS_CODEC_TYPE
-    prompt "Opus Codec Type"
-    default OPUS_CODEC_TYPE_ONLY_DECODE
-    help
-        OPUS编解码的类型
-    config OPUS_CODEC_TYPE_ESP_OPUS
-        bool "esp-opus"
-    config OPUS_CODEC_TYPE_ONLY_DECODE
-        bool "only decode"
-endchoice
-
 config USE_WECHAT_MESSAGE_STYLE
     bool "使用微信聊天界面风格"
     default n
     help
-        使用微信聊天界面风格   
+        使用微信聊天界面风格
 
 menu "UI"
     config UI_STATUS_BAR_PAD
@@ -86,23 +74,17 @@ menu "UI"
             状态栏左右间距  
 endmenu
 
-config USE_AUDIO_PROCESSOR
-    bool "启用音频降噪、增益处理"
-    default y
-    depends on IDF_TARGET_ESP32S3 && SPIRAM
-    help
-        需要 ESP32 S3 与 AFE 支持
-
-config USE_WAKE_WORD_DETECT
-    bool "启用唤醒词检测"
-    default y
-    depends on IDF_TARGET_ESP32S3 && SPIRAM
-    help
-        需要 ESP32 S3 与 AFE 支持
-
 config SPEAKING_FIRST_MUTE_TIME
-    int "讲话之前静音时间"
+    int "speaking first mute time"
     default 0
     help
         讲话之前静音时间
+
+config USE_AUDIO_CODEC_ENCODE_OPUS
+    bool "use audio codec encode opus"
+    default y
+
+config USE_AUDIO_CODEC_DECODE_OPUS
+    bool "use audio codec decode opus"
+    default n
 endmenu

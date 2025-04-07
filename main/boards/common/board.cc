@@ -1,7 +1,6 @@
 #include "board.h"
 #include "system_info.h"
 #include "settings.h"
-#include "opus_codecs/opus_codec.h"
 #include "display/display.h"
 #include "assets/lang_config.h"
 
@@ -52,11 +51,6 @@ bool Board::GetBatteryLevel(int &level, bool& charging, bool& discharging) {
 Display* Board::GetDisplay() {
     static NoDisplay display;
     return &display;
-}
-
-OpusCodec* Board::GetOpusCodec() {
-    static OpusCodec opus_codec;
-    return &opus_codec;
 }
 
 Led* Board::GetLed() {

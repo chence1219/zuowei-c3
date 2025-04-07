@@ -1,22 +1,18 @@
-# ESP32-C3(C2)+VB6824 x 小智 AI 
+# 小智 AI 聊天机器人 （XiaoZhi AI Chatbot）
 
-- 首先致谢虾哥的开源项目：https://github.com/78/xiaozhi-esp32
-- 其次致谢：https://github.com/xinnan-tech/xiaozhi-esp32-server
+（中文 | [English](README_en.md) | [日本語](README_ja.md)）
 
-## 项目简介
+## 视频介绍
 
 👉 [ESP32+SenseVoice+Qwen72B打造你的AI聊天伴侣！【bilibili】](https://www.bilibili.com/video/BV11msTenEH3/)
 
 👉 [给小智装上 DeepSeek 的聪明大脑【bilibili】](https://www.bilibili.com/video/BV1GQP6eNEFG/)
 
-特色：
+👉 [手工打造你的 AI 女友，新手入门教程【bilibili】](https://www.bilibili.com/video/BV1XnmFYLEJN/)
 
-1. VB6824 作为AI语音芯片负责语音打断唤醒和离线语音识别，同时负责录音+音频播放;ESP32-C3(C2)芯片负责接入在线大模型+CozyLife APP。
-2. VB6824 UART TX输出降噪后的高信噪比的录音，接到ESP32-C3(C2)芯片UART RX，RX收到的数字音频发给在线大模型。
-3. VB6824 从DAC处，做回声信号的采集，接入到PA0/PA1（LINEIN）作为AEC的回采信号。
-4. VB6824 语音识别后把识别结果通过UART TX发给ESP32-C3(C2)芯片。
+## 项目目的
 
-本项目是一个开源项目，以 MIT 许可证发布，允许任何人免费使用，并可以用于商业用途。
+本项目是由虾哥开源的一个开源项目，以 MIT 许可证发布，允许任何人免费使用，并可以用于商业用途。
 
 我们希望通过这个项目，能够帮助更多人入门 AI 硬件开发，了解如何将当下飞速发展的大语言模型应用到实际的硬件设备中。无论你是对 AI 感兴趣的学生，还是想要探索新技术的开发者，都可以通过这个项目获得宝贵的学习经验。
 
@@ -64,8 +60,8 @@
 - <a href="https://github.com/Xinyuan-LilyGO/T-Circle-S3" target="_blank" title="LILYGO T-Circle-S3">LILYGO T-Circle-S3</a>
 - <a href="https://oshwhub.com/tenclass01/xmini_c3" target="_blank" title="虾哥 Mini C3">虾哥 Mini C3</a>
 - <a href="https://oshwhub.com/movecall/moji-xiaozhi-ai-derivative-editi" target="_blank" title="Movecall Moji ESP32S3">Moji 小智AI衍生版</a>
+- <a href="https://oshwhub.com/movecall/cuican-ai-pendant-lights-up-y" target="_blank" title="Movecall CuiCan ESP32S3">璀璨·AI吊坠</a>
 - <a href="https://github.com/WMnologo/xingzhi-ai" target="_blank" title="无名科技Nologo-星智-1.54">无名科技Nologo-星智-1.54TFT</a>
-- <a href="https://github.com/WMnologo/xingzhi-ai" target="_blank" title="无名科技Nologo-星智-0.96">无名科技Nologo-星智-0.96TFT</a>
 - <a href="https://www.seeedstudio.com/SenseCAP-Watcher-W1-A-p-5979.html" target="_blank" title="SenseCAP Watcher">SenseCAP Watcher</a>
 <div style="display: flex; justify-content: space-between;">
   <a href="docs/v1/lichuang-s3.jpg" target="_blank" title="立创·实战派 ESP32-S3 开发板">
@@ -95,11 +91,11 @@
   <a href="docs/v1/movecall-moji-esp32s3.jpg" target="_blank" title="Movecall Moji 小智AI衍生版">
     <img src="docs/v1/movecall-moji-esp32s3.jpg" width="240" />
   </a>
+  <a href="docs/v1/movecall-cuican-esp32s3.jpg" target="_blank" title="CuiCan">
+    <img src="docs/v1/movecall-cuican-esp32s3.jpg" width="240" />
+  </a>
   <a href="docs/v1/wmnologo_xingzhi_1.54.jpg" target="_blank" title="无名科技Nologo-星智-1.54">
     <img src="docs/v1/wmnologo_xingzhi_1.54.jpg" width="240" />
-  </a>
-  <a href="docs/v1/wmnologo_xingzhi_0.96.jpg" target="_blank" title="无名科技Nologo-星智-0.96">
-    <img src="docs/v1/wmnologo_xingzhi_0.96.jpg" width="240" />
   </a>
   <a href="docs/v1/sensecap_watcher.jpg" target="_blank" title="SenseCAP Watcher">
     <img src="docs/v1/sensecap_watcher.jpg" width="240" />
@@ -117,68 +113,19 @@
 👉 [Flash烧录固件（无IDF开发环境）](https://ccnphfhqs21z.feishu.cn/wiki/Zpz4wXBtdimBrLk25WdcXzxcnNS) 
 
 
+### 开发环境
 
-<<<<<<< HEAD
-## 离线唤醒词
-### 唤醒词
-| 中文唤醒词           | 英文唤醒词         |
-| ------------------ | ---------------- |
-| 小艾小艾            | Hey Alice        |
-| 你好小智            |                  |
-=======
 - Cursor 或 VSCode
 - 安装 ESP-IDF 插件，选择 SDK 版本 5.3 或以上
 - Linux 比 Windows 更好，编译速度快，也免去驱动问题的困扰
 - 使用 Google C++ 代码风格，提交代码时请确保符合规范
->>>>>>> main
 
-### 机器人
+### 开发者文档
 
-<<<<<<< HEAD
-| 中文指令           | 英文指令         |
-| ------------------ | ---------------- |
-| 再见/不聊了        | Peace out        |
-| 站起来/站立        | Stand up         |
-| 坐下               | Sit down         |
-| 趴下               | Get down         |
-| 转个圈             | Turn around      |
-| 打个滚             | Roll over        |
-| 去尿尿/尿尿去      | Go pee-pee       |
-| 去睡觉/睡觉去      | Go to sleep      |
-| 装死               | Play dead        |
-| 秀一个/跳个舞/跳舞 | Show time        |
-| 来个绝活           | Do stunts        |
-| 倒立旋转           | Handstand spin   |
-| 前进               | Move forward     |
-| 后退               | Move backward    |
-| 左转/向左转        | Turn left        |
-| 右转/向右转        | Turn Right       |
-| 过来               | Come here        |
-| 走开/滚开/滚蛋     | Go away          |
-| 匍匐前进           | Crawling forward |
-| 滑步               | Sliding step     |
-| 我讨厌你           | I hate you       |
+- [开发板定制指南](main/boards/README.md) - 学习如何为小智创建自定义开发板适配
+- [物联网控制模块](main/iot/README.md) - 了解如何通过AI语音控制物联网设备
 
-### 灯光
 
-| 中文指令 | 英文指令             |
-| -------- | -------------------- |
-| 打开灯光 | Turn On The Light    |
-| 关闭灯光 | Switch Off The Light |
-| 调亮灯光 | Brighten The Light   |
-| 调暗灯光 | Dim The Light        |
-| 七彩模式 | Colorful Mode        |
-| 音乐模式 | Music Mode           |
-| 白色灯光 | White Light          |
-| 黄色灯光 | Yellow Light         |
-| 自然灯光 | Natural Light        |
-| 红色灯光 | Red Light            |
-| 绿色灯光 | Green Light          |
-| 蓝色灯光 | Blue Light           |
-| 橙色灯光 | Orange Light         |
-| 青色灯光 | Cyan Light           |
-| 紫色灯光 | Purple Light         |
-=======
 ## 智能体配置
 
 如果你已经拥有一个小智 AI 聊天机器人设备，可以登录 [xiaozhi.me](https://xiaozhi.me) 控制台进行配置。
@@ -190,31 +137,13 @@
 👉 [一份详细的 WebSocket 通信协议文档](docs/websocket.md)
 
 在个人电脑上部署服务器，可以参考另一位作者同样以 MIT 许可证开源的项目 [xiaozhi-esp32-server](https://github.com/xinnan-tech/xiaozhi-esp32-server)
->>>>>>> main
 
-### 音乐
+## Star History
 
-| 中文指令 | 英文指令      |
-| -------- | ------------- |
-| 播放音乐 | Play music    |
-| 暂停播放 | Pause playing |
-| 停止播放 | Stop playing  |
-| 上一首   | Previous song |
-| 下一首   | Next song     |
-
-### 配网
-
-| 中文指令 | 英文指令      |
-| -------- | ------------- |
-| 开始配网 | Start pairing |
-| 停止配网 | Stop pairing  |
-
-## 更多问题
-
-技术支持微信：andy433928
-
-VB6824：https://item.taobao.com/item.htm?id=891592447743& 
-
-C2开发板：https://item.taobao.com/item.htm?id=688271301869
-
-C3开发板：https://item.taobao.com/item.htm?id=652593406663&skuId=5184792378516：
+<a href="https://star-history.com/#78/xiaozhi-esp32&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=78/xiaozhi-esp32&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=78/xiaozhi-esp32&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=78/xiaozhi-esp32&type=Date" />
+ </picture>
+</a>

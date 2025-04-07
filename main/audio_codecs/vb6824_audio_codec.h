@@ -14,22 +14,22 @@ private:
     void ready();
     void WakeUp(std::string command);
     virtual int Read(int16_t* dest, int samples) override;
+#ifdef CONFIG_USE_AUDIO_CODEC_ENCODE_OPUS
+    virtual int Read(uint8_t* dest, int samples) override;
+#endif
     virtual int Write(const int16_t* data, int samples) override;
+#ifdef CONFIG_USE_AUDIO_CODEC_DECODE_OPUS
+    virtual int Write(uint8_t* opus, int samples) override;
+#endif
     std::function<void(std::string)> on_wake_up_;
-    std::function<bool()> on_input_ready_;
-    std::function<bool()> on_output_ready_;
-    esp_timer_handle_t ready_timer_ = nullptr;
     bool frist_volume_is_set = false;
 public:
     VbAduioCodec(gpio_num_t tx, gpio_num_t rx);
     void OnWakeUp(std::function<void(std::string)> callback);
     void SetOutputVolume(int volume) override;
-    virtual void OnOutputReady(std::function<bool()> callback) override;
-    virtual void OnInputReady(std::function<bool()> callback) override;
     virtual void Start() override;
-#if (defined(CONFIG_OPUS_CODEC_TYPE_ONLY_DECODE))
-    virtual void OutputData(std::vector<int16_t>& data) override;
-    virtual bool InputData(std::vector<int16_t>& data) override;
+#ifdef CONFIG_USE_AUDIO_CODEC_ENCODE_OPUS
+    virtual bool InputData(std::vector<uint8_t>& opus) override;
 #endif
     virtual void EnableInput(bool enable) override; 
     virtual void EnableOutput(bool enable) override; 

@@ -23,8 +23,8 @@ public:
     virtual void Start();
     virtual void OutputData(std::vector<int16_t>& data);
     virtual bool InputData(std::vector<int16_t>& data);
-    virtual void OnOutputReady(std::function<bool()> callback);
-    virtual void OnInputReady(std::function<bool()> callback);
+    virtual void OutputData(std::vector<uint8_t>& opus);
+    virtual bool InputData(std::vector<uint8_t>& opus);
 
     inline bool duplex() const { return duplex_; }
     inline bool input_reference() const { return input_reference_; }
@@ -33,13 +33,8 @@ public:
     inline int input_channels() const { return input_channels_; }
     inline int output_channels() const { return output_channels_; }
     inline int output_volume() const { return output_volume_; }
-
-private:
-    std::function<bool()> on_input_ready_;
-    std::function<bool()> on_output_ready_;
-    
-    IRAM_ATTR static bool on_recv(i2s_chan_handle_t handle, i2s_event_data_t *event, void *user_ctx);
-    IRAM_ATTR static bool on_sent(i2s_chan_handle_t handle, i2s_event_data_t *event, void *user_ctx);
+    inline bool input_enabled() const { return input_enabled_; }
+    inline bool output_enabled() const { return output_enabled_; }
 
 protected:
     i2s_chan_handle_t tx_handle_ = nullptr;
@@ -54,10 +49,16 @@ protected:
     int input_channels_ = 1;
     int output_channels_ = 1;
     int output_volume_ = 70;
-    int input_size_ = 0;
 
     virtual int Read(int16_t* dest, int samples) = 0;
     virtual int Write(const int16_t* data, int samples) = 0;
+
+    virtual int Read(uint8_t* opus, int samples) { 
+        return 0;
+    };
+    virtual int Write(const uint8_t* opus, int samples) { 
+        return 0;
+    };
 };
 
 #endif // _AUDIO_CODEC_H
