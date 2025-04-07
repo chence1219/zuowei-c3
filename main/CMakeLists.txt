@@ -3,7 +3,6 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "audio_codecs/box_audio_codec.cc"
             "audio_codecs/es8311_audio_codec.cc"
             "audio_codecs/es8388_audio_codec.cc"
-            "opus_codecs/opus_codec.cc"
             "led/single_led.cc"
             "led/circular_strip.cc"
             "led/gpio_led.cc"
@@ -21,7 +20,7 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "main.cc"
             )
 
-set(INCLUDE_DIRS "." "display" "audio_codecs" "opus_codecs" "protocols" "audio_processing")
+set(INCLUDE_DIRS "." "display" "audio_codecs" "protocols" "audio_processing")
 
 # 添加 IOT 相关文件
 file(GLOB IOT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/iot/things/*.cc)
@@ -40,7 +39,7 @@ elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ML307)
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ESP32)
     set(BOARD_TYPE "bread-compact-esp32")
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ESP32_LCD)
-    set(BOARD_TYPE "bread-compact-esp32-lcd")    
+    set(BOARD_TYPE "bread-compact-esp32-lcd")
 elseif(CONFIG_BOARD_TYPE_DF_K10)
     set(BOARD_TYPE "df-k10")
 elseif(CONFIG_BOARD_TYPE_ESP_BOX_3)
@@ -97,6 +96,8 @@ elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_1_85)
     set(BOARD_TYPE "esp32-s3-touch-lcd-1.85")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_1_46)
     set(BOARD_TYPE "esp32-s3-touch-lcd-1.46")
+elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_3_5)
+    set(BOARD_TYPE "esp32-s3-touch-lcd-3.5")
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD)
     set(BOARD_TYPE "bread-compact-wifi-lcd")
 elseif(CONFIG_BOARD_TYPE_TUDOUZI)
@@ -107,6 +108,8 @@ elseif(CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3)
     set(BOARD_TYPE "lilygo-t-cameraplus-s3")
 elseif(CONFIG_BOARD_TYPE_MOVECALL_MOJI_ESP32S3)
     set(BOARD_TYPE "movecall-moji-esp32s3")
+    elseif(CONFIG_BOARD_TYPE_MOVECALL_CUICAN_ESP32S3)
+    set(BOARD_TYPE "movecall-cuican-esp32s3")
 elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3)
     set(BOARD_TYPE "atk-dnesp32s3")
 elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX)
@@ -115,6 +118,10 @@ elseif(CONFIG_BOARD_TYPE_DU_CHATX)
     set(BOARD_TYPE "du-chatx")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Taiji_Pi)
     set(BOARD_TYPE "taiji-pi-s3")
+elseif(CONFIG_BOARD_TYPE_XINGZHI_Cube_0_85TFT_WIFI)
+    set(BOARD_TYPE "xingzhi-cube-0.85tft-wifi")
+elseif(CONFIG_BOARD_TYPE_XINGZHI_Cube_0_85TFT_ML307)
+    set(BOARD_TYPE "xingzhi-cube-0.85tft-ml307")
 elseif(CONFIG_BOARD_TYPE_XINGZHI_Cube_0_96OLED_WIFI)
     set(BOARD_TYPE "xingzhi-cube-0.96oled-wifi")
 elseif(CONFIG_BOARD_TYPE_XINGZHI_Cube_0_96OLED_ML307)
@@ -126,13 +133,11 @@ elseif(CONFIG_BOARD_TYPE_XINGZHI_Cube_1_54TFT_ML307)
 elseif(CONFIG_BOARD_TYPE_SENSECAP_WATCHER)
     set(BOARD_TYPE "sensecap-watcher")
 elseif(CONFIG_BOARD_TYPE_ESP32_CGC)
-    set(BOARD_TYPE "esp32-cgc")  
+    set(BOARD_TYPE "esp32-cgc")
 elseif(CONFIG_BOARD_TYPE_DOIT_AI_01_KIT)
     set(BOARD_TYPE "doit-ai-01-kit")
 elseif(CONFIG_BOARD_TYPE_DOIT_AI_01_KIT_LCD)
     set(BOARD_TYPE "doit-ai-01-kit-lcd")
-elseif(CONFIG_BOARD_TYPE_DOIT_AI_01_KIT_LCD_REMOTE)
-    set(BOARD_TYPE "doit-ai-01-kit-lcd-remote")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
@@ -176,13 +181,12 @@ if(CONFIG_IDF_TARGET_ESP32)
                              "audio_codecs/es8388_audio_codec.cc"
                              "led/gpio_led.cc"
                              )
-elseif(CONFIG_BOARD_TYPE_DOIT_AI_01_KIT OR CONFIG_BOARD_TYPE_DOIT_AI_01_KIT_LCD OR CONFIG_BOARD_TYPE_DOIT_AI_01_KIT_LCD_REMOTE)
-    list(APPEND SOURCES "audio_codecs/vb6824_audio_codec.cc" 
-                        "opus_codecs/no_opus_codec.cc"
-                        "opus_codecs/only_dec_opus_code.cc")
+endif()
+
+if(CONFIG_BOARD_TYPE_DOIT_AI_01_KIT OR CONFIG_BOARD_TYPE_DOIT_AI_01_KIT_LCD OR CONFIG_BOARD_TYPE_DOIT_AI_01_KIT_LCD_REMOTE)
+    list(APPEND SOURCES "audio_codecs/vb6824_audio_codec.cc")
     list(REMOVE_ITEM SOURCES "audio_codecs/box_audio_codec.cc"
                             "audio_codecs/no_audio_codec.cc"
-                            "audio_codecs/box_audio_codec.cc"
                             "audio_codecs/es8311_audio_codec.cc"
                             "audio_codecs/es8388_audio_codec.cc")
 endif()

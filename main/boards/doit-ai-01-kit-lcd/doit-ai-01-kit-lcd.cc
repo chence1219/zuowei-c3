@@ -1,9 +1,6 @@
 
 #include "wifi_board.h"
 #include "audio_codecs/vb6824_audio_codec.h"
-#include "opus_codecs/opus_codec.h"
-#include "opus_codecs/no_opus_codec.h"
-#include "opus_codecs/only_dec_opus_code.h"
 #include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"
@@ -33,7 +30,6 @@ private:
     Button boot_button_;
     VbAduioCodec audio_codec;
     LcdDisplay* display;
-    OpusCodec* opus_codec = nullptr;
 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
@@ -129,19 +125,6 @@ public:
         return &audio_codec;
     }
 
-    virtual OpusCodec* GetOpusCodec() override {
-        if(opus_codec == nullptr){
-#if defined(CONFIG_OPUS_CODEC_TYPE_NO_CODEC)
-            opus_codec = new NoOpusCodec();
-#elif defined(CONFIG_OPUS_CODEC_TYPE_ONLY_DECODE)
-            opus_codec = new OnlyDecOpusCodec();
-#else
-            opus_codec = new OpusCodec();
-#endif
-        }
-        return opus_codec;
-    }
-
     virtual Display* GetDisplay() override {
         return display;
     }
@@ -175,9 +158,7 @@ public:
 
         vTaskDelay(pdMS_TO_TICKS(3500));
 
-        //释放opus编码器的内存
-        delete opus_codec;
-        opus_codec = nullptr;
+        // 可以释放opus编码器的内存
         
         // Wait forever until reset after configuration
         while (true) {

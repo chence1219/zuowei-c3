@@ -1,9 +1,6 @@
 
 #include "wifi_board.h"
 #include "audio_codecs/vb6824_audio_codec.h"
-#include "opus_codecs/opus_codec.h"
-#include "opus_codecs/no_opus_codec.h"
-#include "opus_codecs/only_dec_opus_code.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
@@ -57,18 +54,6 @@ public:
     virtual AudioCodec* GetAudioCodec() override {
         return &audio_codec;
     }
-
-    virtual OpusCodec* GetOpusCodec() override {
-#if defined(CONFIG_OPUS_CODEC_TYPE_NO_CODEC)
-        static NoOpusCodec opus_codec;
-#elif defined(CONFIG_OPUS_CODEC_TYPE_ONLY_DECODE)
-        static OnlyDecOpusCodec opus_codec;
-#else
-        static OpusCodec opus_codec;
-#endif
-        return &opus_codec;
-    }
-
 };
 
 DECLARE_BOARD(CustomBoard);

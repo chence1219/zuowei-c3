@@ -236,9 +236,10 @@ void __uart_init(gpio_num_t tx, gpio_num_t rx){
     uart_param_config(UART_NUM, &uart_config);
     uart_set_pin(UART_NUM, tx, rx, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
 #ifdef CONFIG_IDF_TARGET_ESP32C2
-    xTaskCreate(__uart_task, "__uart_task", 1024 * 3, NULL, 7, NULL);
+    xTaskCreate(__uart_task, "__uart_task", 1024 * 3, NULL, 9, NULL);
+    // xTaskCreate(__uart_task, "__uart_task", 1024 * 2 + 256, NULL, 9, NULL);
 #else
-    xTaskCreate(__uart_task, "__uart_task", 1024 * 4, NULL, 7, NULL);
+    xTaskCreate(__uart_task, "__uart_task", 1024 * 4, NULL, 9, NULL);
 #endif
 }
 
@@ -333,8 +334,8 @@ uint16_t vb6824_audio_read(uint8_t *data, uint16_t size){
     size_t items_waiting = 0;
     vRingbufferGetInfo(g_rx_ringbuffer, NULL, NULL, NULL, NULL, &items_waiting);
 #if (defined(CONFIG_VB6824_TYPE_OPUS_16K_20MS) || defined(CONFIG_VB6824_TYPE_OPUS_16K_20MS_PCM_16K))
-    if(items_waiting > 0){
-        char *item = (char *)xRingbufferReceive(g_rx_ringbuffer, &item_size, 0);
+    // if(items_waiting > 0){
+        char *item = (char *)xRingbufferReceive(g_rx_ringbuffer, &item_size, portMAX_DELAY);
         if (item != NULL) {
             if(size >= item_size){
                 memcpy(data, item, item_size);
@@ -344,15 +345,15 @@ uint16_t vb6824_audio_read(uint8_t *data, uint16_t size){
             }
             vRingbufferReturnItem(g_rx_ringbuffer, (void *)item);
         }
-    }
+    // }
 #else
-    if(items_waiting > size){
-        char *item = (uint8_t *)xRingbufferReceiveUpTo(g_rx_ringbuffer, &item_size, 0, size);
+    // if(items_waiting > size){
+        char *item = (uint8_t *)xRingbufferReceiveUpTo(g_rx_ringbuffer, &item_size, portMAX_DELAY, size);
         if(item_size > 0){
             memcpy(data, item, item_size);
             vRingbufferReturnItem(g_rx_ringbuffer, (void *)item);
         }
-    }
+    // }
 #endif
     return item_size;
 }
@@ -371,7 +372,8 @@ void vb6824_init(gpio_num_t tx, gpio_num_t rx){
     g_tx_ringbuffer = xRingbufferCreate(SEND_BUF_LENGTH, RINGBUF_TYPE_BYTEBUF);
 #endif
 
-    xTaskCreate(__send_task, "__send_task", 1024 * 2, NULL, 8, NULL);
+    xTaskCreate(__send_task, "__send_task", 2048, NULL, 9, NULL);
+    // xTaskCreate(__send_task, "__send_task", 1024, NULL, 9, NULL);
 
     // esp_timer_handle_t send_timer = NULL;
     // esp_timer_create_args_t timer_args = {

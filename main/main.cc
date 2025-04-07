@@ -26,20 +26,5 @@ extern "C" void app_main(void)
 
     // Launch the application
     Application::GetInstance().Start();
-
-    // Dump CPU usage every 10 second
     // The main thread will exit and release the stack memory
-    // while (true) {
-    //     vTaskDelay(10000 / portTICK_PERIOD_MS);
-    //     // SystemInfo::PrintRealTimeStats(pdMS_TO_TICKS(1000));
-    //     int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
-    //     int min_free_sram = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
-    //     ESP_LOGI(TAG, "Free internal: %u minimal internal: %u", free_sram, min_free_sram);
-
-    //     char pcWriteBuffer[1024];
-    //     // 生成任务列表信息到缓冲区
-    //     vTaskList(pcWriteBuffer);
-    //     // 打印任务列表信息
-    //     printf("Task List:\n%s\n", pcWriteBuffer);
-    // }
 }

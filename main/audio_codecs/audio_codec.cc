@@ -14,23 +14,11 @@ AudioCodec::AudioCodec() {
 AudioCodec::~AudioCodec() {
 }
 
-void AudioCodec::OnInputReady(std::function<bool()> callback) {
-    on_input_ready_ = callback;
-}
-
-void AudioCodec::OnOutputReady(std::function<bool()> callback) {
-    on_output_ready_ = callback;
-}
-
 void AudioCodec::OutputData(std::vector<int16_t>& data) {
     Write(data.data(), data.size());
 }
 
 bool AudioCodec::InputData(std::vector<int16_t>& data) {
-    int duration = 30;
-    int input_frame_size = input_sample_rate_ / 1000 * duration * input_channels_;
-
-    data.resize(input_frame_size);
     int samples = Read(data.data(), data.size());
     if (samples > 0) {
         return true;
@@ -38,18 +26,14 @@ bool AudioCodec::InputData(std::vector<int16_t>& data) {
     return false;
 }
 
-IRAM_ATTR bool AudioCodec::on_sent(i2s_chan_handle_t handle, i2s_event_data_t *event, void *user_ctx) {
-    auto audio_codec = (AudioCodec*)user_ctx;
-    if (audio_codec->output_enabled_ && audio_codec->on_output_ready_) {
-        return audio_codec->on_output_ready_();
-    }
-    return false;
+void AudioCodec::OutputData(std::vector<uint8_t>& opus) {
+    Write(opus.data(), opus.size());
 }
 
-IRAM_ATTR bool AudioCodec::on_recv(i2s_chan_handle_t handle, i2s_event_data_t *event, void *user_ctx) {
-    auto audio_codec = (AudioCodec*)user_ctx;
-    if (audio_codec->input_enabled_ && audio_codec->on_input_ready_) {
-        return audio_codec->on_input_ready_();
+bool AudioCodec::InputData(std::vector<uint8_t>& opus) {
+    int samples = Read(opus.data(), opus.size());
+    if (samples > 0) {
+        return true;
     }
     return false;
 }
@@ -61,19 +45,15 @@ void AudioCodec::Start() {
         ESP_LOGW(TAG, "Output volume value (%d) is too small, setting to default (10)", output_volume_);
         output_volume_ = 10;
     }
-
-#ifndef CONFIG_IDF_TARGET_ESP32C2
-    // 注册音频数据回调
-    i2s_event_callbacks_t rx_callbacks = {};
-    rx_callbacks.on_recv = on_recv;
-    i2s_channel_register_event_callback(rx_handle_, &rx_callbacks, this);
-
-    i2s_event_callbacks_t tx_callbacks = {};
-    tx_callbacks.on_sent = on_sent;
-    i2s_channel_register_event_callback(tx_handle_, &tx_callbacks, this);
-
-    ESP_ERROR_CHECK(i2s_channel_enable(tx_handle_));
-    ESP_ERROR_CHECK(i2s_channel_enable(rx_handle_));
+    
+#ifdef CONFIG_IDF_TARGET_ESP32C2
+#else
+    if(tx_handle_){
+        ESP_ERROR_CHECK(i2s_channel_enable(tx_handle_));
+    }
+    if(rx_handle_){
+        ESP_ERROR_CHECK(i2s_channel_enable(rx_handle_));
+    }
 #endif
 
     EnableInput(true);
