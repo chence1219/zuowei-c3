@@ -587,6 +587,22 @@ void Application::Start() {
 #endif
 }
 
+void Application::Close() {
+    if (device_state_ == kDeviceStateActivating) {
+        SetDeviceState(kDeviceStateIdle);
+        return;
+    }
+
+    if (!protocol_) {
+        ESP_LOGE(TAG, "Protocol not initialized");
+        return;
+    }
+
+    Schedule([this]() {
+        protocol_->CloseAudioChannel();
+    });
+}
+
 void Application::OnClockTimer() {
     clock_ticks_++;
 
