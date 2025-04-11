@@ -13,6 +13,9 @@ typedef void (*vb_voice_command_cb_t)(char *command, uint16_t len, void *arg);
 
 void vb6824_register_voice_command_cb(vb_voice_command_cb_t cb, void *arg);
 
+void vb6824_audio_enable_input(bool enable);
+void vb6824_audio_enable_output(bool enable);
+
 void vb6824_audio_set_output_volume(uint8_t volume);
 
 void vb6824_audio_write(uint8_t *data, uint16_t len);

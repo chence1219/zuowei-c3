@@ -84,6 +84,9 @@ static RingbufHandle_t g_tx_ringbuffer = NULL;
 static void *g_voice_command_cb_arg = NULL;
 static vb_voice_command_cb_t g_voice_command_cb = NULL;
 
+static bool g_input_enabled = false;
+static bool g_output_enabled = false;
+
 void __vb6824_frame_cb(uint8_t *frame, uint16_t frame_len);
 
 static inline int __sum_bytes(const uint8_t* bytes, uint16_t size) {
@@ -260,20 +263,24 @@ void __send_task(void *arg) {
     TickType_t last_time = xTaskGetTickCount();
     while (1)
     {
-        size_t item_size = 0;
+        if(g_output_enabled){
+            size_t item_size = 0;
 #if defined(CONFIG_VB6824_TYPE_OPUS_16K_20MS)
-        uint8_t *item = (uint8_t *)xRingbufferReceive(g_tx_ringbuffer, &item_size, portMAX_DELAY);
+            uint8_t *item = (uint8_t *)xRingbufferReceive(g_tx_ringbuffer, &item_size, portMAX_DELAY);
 #else
-        uint8_t *item = (uint8_t *)xRingbufferReceiveUpTo(g_tx_ringbuffer, &item_size, portMAX_DELAY, AUDIO_SEND_CHENK_LEN);
+            uint8_t *item = (uint8_t *)xRingbufferReceiveUpTo(g_tx_ringbuffer, &item_size, portMAX_DELAY, AUDIO_SEND_CHENK_LEN);
 #endif
-        if (item != NULL) {
-            TickType_t now_time = xTaskGetTickCount();
-            if((now_time - last_time) >= pdMS_TO_TICKS(AUDIO_SEND_CHENK_MS)){
-                last_time = xTaskGetTickCount();
+            if (item != NULL) {
+                TickType_t now_time = xTaskGetTickCount();
+                if((now_time - last_time) >= pdMS_TO_TICKS(AUDIO_SEND_CHENK_MS)){
+                    last_time = xTaskGetTickCount();
+                }
+                __frame_send(VB6824_CMD_SEND_PCM, (uint8_t *)item, item_size);
+                vRingbufferReturnItem(g_tx_ringbuffer, (void *)item);
+                vTaskDelayUntil(&last_time, pdMS_TO_TICKS(AUDIO_SEND_CHENK_MS));
             }
-            __frame_send(VB6824_CMD_SEND_PCM, (uint8_t *)item, item_size);
-            vRingbufferReturnItem(g_tx_ringbuffer, (void *)item);
-            vTaskDelayUntil(&last_time, pdMS_TO_TICKS(AUDIO_SEND_CHENK_MS));
+        }else{
+            vTaskDelay(10);
         }
     }
 }
@@ -287,7 +294,45 @@ void __vb6824_frame_cb(uint8_t *data, uint16_t len){
     switch (frame->cmd)
     {
     case VB6824_CMD_RECV_PCM:{
-        while(xRingbufferGetCurFreeSize(g_rx_ringbuffer) < frame->len){
+        if(g_input_enabled){
+            while(xRingbufferGetCurFreeSize(g_rx_ringbuffer) < frame->len){
+                size_t item_size = 0;
+#if (defined(CONFIG_VB6824_TYPE_OPUS_16K_20MS) || defined(CONFIG_VB6824_TYPE_OPUS_16K_20MS_PCM_16K))
+                uint8_t *item = (uint8_t *)xRingbufferReceive(g_rx_ringbuffer, &item_size, 0);
+#else
+                uint8_t *item = (uint8_t *)xRingbufferReceiveUpTo(g_rx_ringbuffer, &item_size, 0, size);
+#endif
+                if (item != NULL) {
+                    vRingbufferReturnItem(g_rx_ringbuffer, (void *)item);
+                }else{
+                    break;
+                }
+            }
+            xRingbufferSend(g_rx_ringbuffer, (void *)frame->data, frame->len, portMAX_DELAY);
+        }
+        break;
+    } 
+    case VB6824_CMD_RECV_CTL:{
+        ESP_LOGI(TAG, "vb6824 recv cmd: %04x, len: %d :%.*s", frame->cmd, frame->len, frame->len, frame->data);
+        if(g_voice_command_cb){
+            g_voice_command_cb((char *)frame->data, frame->len, g_voice_command_cb_arg);
+        }
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+void vb6824_audio_enable_input(bool enable){
+    if (enable == g_input_enabled) {
+        return;
+    }
+
+    g_input_enabled = enable;
+
+    if(g_input_enabled == false){
+        while(1){
             size_t item_size = 0;
 #if (defined(CONFIG_VB6824_TYPE_OPUS_16K_20MS) || defined(CONFIG_VB6824_TYPE_OPUS_16K_20MS_PCM_16K))
             uint8_t *item = (uint8_t *)xRingbufferReceive(g_rx_ringbuffer, &item_size, 0);
@@ -300,18 +345,31 @@ void __vb6824_frame_cb(uint8_t *data, uint16_t len){
                 break;
             }
         }
-        xRingbufferSend(g_rx_ringbuffer, (void *)frame->data, frame->len, portMAX_DELAY);
-        break;
-    } 
-    case VB6824_CMD_RECV_CTL:{
-        ESP_LOGI(TAG, "vb6824 recv cmd: %04x, len: %d :%.*s", frame->cmd, frame->len, frame->len, frame->data);
-        if(g_voice_command_cb){
-            g_voice_command_cb((char *)frame->data, frame->len, g_voice_command_cb_arg);
-        }
-        break;
     }
-    default:
-        break;
+
+}
+
+void vb6824_audio_enable_output(bool enable){
+    if (enable == g_output_enabled) {
+        return;
+    }
+
+    g_output_enabled = enable;
+
+    if(g_output_enabled == false){
+        while(1){
+            size_t item_size = 0;
+#if defined(CONFIG_VB6824_TYPE_OPUS_16K_20MS)
+            uint8_t *item = (uint8_t *)xRingbufferReceive(g_tx_ringbuffer, &item_size, 0);
+#else
+            uint8_t *item = (uint8_t *)xRingbufferReceiveUpTo(g_tx_ringbuffer, &item_size, 0, AUDIO_SEND_CHENK_LEN);
+#endif
+            if (item != NULL) {
+                vRingbufferReturnItem(g_rx_ringbuffer, (void *)item);
+            }else{
+                break;
+            }
+        }
     }
 }
 
