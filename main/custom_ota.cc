@@ -2,6 +2,7 @@
 #include "system_info.h"
 #include "board.h"
 #include "settings.h"
+#include "assets/lang_config.h"
 
 #include <cJSON.h>
 #include <esp_log.h>
@@ -18,7 +19,9 @@
 
 
 CustomOta::CustomOta() {
-
+#ifdef CONFIG_USE_CUSTOM_OTA
+    SetCheckVersionUrl(CONFIG_CUSTOM_OTA_VERSION_URL);
+#endif
 }
 
 CustomOta::~CustomOta() {
@@ -26,7 +29,11 @@ CustomOta::~CustomOta() {
 }
 
 bool CustomOta::CheckVersion() {
-    current_version_ = esp_app_get_description()->version;
+    auto& board = Board::GetInstance();
+    auto app_desc = esp_app_get_description();
+
+    // Check if there is a new firmware version available
+    current_version_ = app_desc->version;
     ESP_LOGI(TAG, "Current version: %s", current_version_.c_str());
 
     if (check_version_url_.length() < 10) {
@@ -34,14 +41,21 @@ bool CustomOta::CheckVersion() {
         return false;
     }
 
-    auto http = Board::GetInstance().CreateHttp();
+    auto http = board.CreateHttp();
     for (const auto& header : headers_) {
         http->SetHeader(header.first, header.second);
     }
 
+    http->SetHeader("Ota-Version", "2");
+    http->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
+    http->SetHeader("Client-Id", board.GetUuid());
+    http->SetHeader("User-Agent", std::string(BOARD_NAME "/") + app_desc->version);
+    http->SetHeader("Accept-Language", Lang::CODE);
     http->SetHeader("Content-Type", "application/json");
-    std::string method = post_data_.length() > 0 ? "POST" : "GET";
-    if (!http->Open(method, check_version_url_, post_data_)) {
+
+    std::string post_data = board.GetJson();
+    std::string method = post_data.length() > 0 ? "POST" : "GET";
+    if (!http->Open(method, check_version_url_, post_data)) {
         ESP_LOGE(TAG, "Failed to open HTTP connection");
         delete http;
         return false;
@@ -92,7 +106,6 @@ bool CustomOta::CheckVersion() {
     has_new_version_ = IsNewVersionAvailable(current_version_, firmware_version_);
     if (has_new_version_) {
         ESP_LOGI(TAG, "New version available: %s", firmware_version_.c_str());
-        ESP_LOGI(TAG, "New firmware: %s", firmware_url_.c_str());
     } else {
         ESP_LOGI(TAG, "Current is the latest version");
     }

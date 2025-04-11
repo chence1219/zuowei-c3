@@ -15,7 +15,6 @@
 #include <cJSON.h>
 #include <driver/gpio.h>
 #include <arpa/inet.h>
-#include <esp_app_desc.h>
 
 #include "custom_ota.h"
 
@@ -79,19 +78,15 @@ Application::~Application() {
 }
 
 void Application::CheckNewVersion() {
-    auto& board = Board::GetInstance();
-    auto display = board.GetDisplay();
-    // Check if there is a new firmware version available
-    ota_.SetPostData(board.GetJson());
-#ifdef CONFIG_USE_CUSTOM_OTA
-    custom_ota_.SetPostData(board.GetJson());
-    custom_ota_.CheckVersion();
-#endif
-
     const int MAX_RETRY = 10;
     int retry_count = 0;
 
+#ifdef CONFIG_USE_CUSTOM_OTA
+    custom_ota_.CheckVersion();
+#endif
+
     while (true) {
+        auto display = Board::GetInstance().GetDisplay();
         if (!ota_.CheckVersion()) {
             retry_count++;
             if (retry_count >= MAX_RETRY) {
@@ -612,21 +607,6 @@ void Application::Start() {
     protocol_->Start();
 
     // Check for new firmware version or get the MQTT broker address
-    ota_.SetCheckVersionUrl(CONFIG_OTA_VERSION_URL);
-    ota_.SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
-    ota_.SetHeader("Client-Id", board.GetUuid());
-    ota_.SetHeader("Accept-Language", Lang::CODE);
-    auto app_desc = esp_app_get_description();
-    ota_.SetHeader("User-Agent", std::string(BOARD_NAME "/") + app_desc->version);
-
-#ifdef CONFIG_USE_CUSTOM_OTA
-    custom_ota_.SetCheckVersionUrl(CONFIG_CUSTOM_OTA_VERSION_URL);
-    custom_ota_.SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
-    custom_ota_.SetHeader("Client-Id", board.GetUuid());
-    custom_ota_.SetHeader("Accept-Language", Lang::CODE);
-    custom_ota_.SetHeader("User-Agent", std::string(BOARD_NAME "/") + app_desc->version);
-#endif
-
     xTaskCreate([](void* arg) {
         Application* app = (Application*)arg;
         app->CheckNewVersion();
