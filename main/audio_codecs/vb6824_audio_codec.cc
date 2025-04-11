@@ -70,6 +70,7 @@ void VbAduioCodec::EnableInput(bool enable) {
     if (enable == input_enabled_) {
         return;
     }
+    vb6824_audio_enable_input(enable);
     input_enabled_ = enable;
     ESP_LOGI(TAG, "Set input enable to %s", enable ? "true" : "false");
 }
@@ -78,6 +79,7 @@ void VbAduioCodec::EnableOutput(bool enable) {
     if (enable == output_enabled_) {
         return;
     }
+    vb6824_audio_enable_output(enable);
     output_enabled_ = enable;
     ESP_LOGI(TAG, "Set output enable to %s", enable ? "true" : "false");
 }
