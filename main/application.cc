@@ -634,6 +634,9 @@ void Application::AudioLoop() {
         if (codec->output_enabled()) {
             OnAudioOutput();
         }
+#if CONFIG_FREERTOS_HZ == 1000
+        vTaskDelay(pdMS_TO_TICKS(2));
+#endif
     }
 }
 
@@ -718,7 +721,9 @@ void Application::OnAudioInput() {
         return;
     }
 #endif
+#if CONFIG_FREERTOS_HZ == 1000
     vTaskDelay(pdMS_TO_TICKS(30));
+#endif
 }
 
 void Application::ReadAudio(std::vector<int16_t>& data, int sample_rate, int samples) {
