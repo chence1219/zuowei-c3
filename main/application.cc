@@ -17,6 +17,8 @@
 #include <arpa/inet.h>
 #include <esp_app_desc.h>
 
+#include "custom_ota.h"
+
 #define TAG "Application"
 
 #if defined(CONFIG_USE_AUDIO_CODEC_ENCODE_OPUS) && (CONFIG_USE_WAKE_WORD_DETECT || CONFIG_USE_AUDIO_PROCESSOR)
@@ -81,6 +83,10 @@ void Application::CheckNewVersion() {
     auto display = board.GetDisplay();
     // Check if there is a new firmware version available
     ota_.SetPostData(board.GetJson());
+#ifdef CONFIG_USE_CUSTOM_OTA
+    custom_ota_.SetPostData(board.GetJson());
+    custom_ota_.CheckVersion();
+#endif
 
     const int MAX_RETRY = 10;
     int retry_count = 0;
@@ -98,7 +104,18 @@ void Application::CheckNewVersion() {
         }
         retry_count = 0;
 
-        if (ota_.HasNewVersion()) {
+#ifdef CONFIG_USE_CUSTOM_OTA
+        if (ota_.HasNewVersion() || (custom_ota_.HasNewVersion() && custom_ota_.forced())) {
+            Ota *ota = nullptr;
+            if(ota_.HasNewVersion()){
+                ota = &ota_;
+            }else{
+                ota = &custom_ota_;
+            }
+#else
+        if (ota_.HasNewVersion()){
+            Ota *ota = &ota_;
+#endif
             Alert(Lang::Strings::OTA_UPGRADE, Lang::Strings::UPGRADING, "happy", Lang::Sounds::P3_UPGRADE);
             // Wait for the chat state to be idle
             do {
@@ -106,11 +123,11 @@ void Application::CheckNewVersion() {
             } while (GetDeviceState() != kDeviceStateIdle);
 
             // Use main task to do the upgrade, not cancelable
-            Schedule([this, display]() {
+            Schedule([this, display, ota]() {
                 SetDeviceState(kDeviceStateUpgrading);
                 
                 display->SetIcon(FONT_AWESOME_DOWNLOAD);
-                std::string message = std::string(Lang::Strings::NEW_VERSION) + ota_.GetFirmwareVersion();
+                std::string message = std::string(Lang::Strings::NEW_VERSION) + ota->GetFirmwareVersion();
                 display->SetChatMessage("system", message.c_str());
 
                 auto& board = Board::GetInstance();
@@ -131,7 +148,7 @@ void Application::CheckNewVersion() {
                 background_task_ = nullptr;
                 vTaskDelay(pdMS_TO_TICKS(1000));
 
-                ota_.StartUpgrade([display](int progress, size_t speed) {
+                ota->StartUpgrade([display](int progress, size_t speed) {
                     char buffer[64];
                     snprintf(buffer, sizeof(buffer), "%d%% %zuKB/s", progress, speed / 1024);
                     display->SetChatMessage("system", buffer);
@@ -175,6 +192,100 @@ void Application::CheckNewVersion() {
         break;
     }
 }
+
+#ifdef CONFIG_USE_CUSTOM_OTA
+void Application::CheckNewVersionForCustom() {
+
+    auto& board = Board::GetInstance();
+    auto display = board.GetDisplay();
+
+    custom_ota_.CheckVersion();
+  
+    if (custom_ota_.HasNewVersion()) {
+        ESP_LOGI(TAG, "has new version");
+        Close();
+        vTaskDelay(pdMS_TO_TICKS(200));
+        Alert(Lang::Strings::OTA_UPGRADE, Lang::Strings::UPGRADING, "happy", Lang::Sounds::P3_UPGRADE);
+        // Wait for the chat state to be idle
+        do {
+            vTaskDelay(pdMS_TO_TICKS(3000));
+        } while (GetDeviceState() != kDeviceStateIdle);
+
+        // Use main task to do the upgrade, not cancelable
+        Schedule([this, display]() {
+            SetDeviceState(kDeviceStateUpgrading);
+            
+            display->SetIcon(FONT_AWESOME_DOWNLOAD);
+            std::string message = std::string(Lang::Strings::NEW_VERSION) + custom_ota_.GetFirmwareVersion();
+            display->SetChatMessage("system", message.c_str());
+
+            auto& board = Board::GetInstance();
+            board.SetPowerSaveMode(false);
+#if CONFIG_USE_WAKE_WORD_DETECT
+            wake_word_detect_.StopDetection();
+#endif
+            // 预先关闭音频输出，避免升级过程有音频操作
+            auto codec = board.GetAudioCodec();
+            codec->EnableInput(false);
+            codec->EnableOutput(false);
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                audio_decode_queue_.clear();
+            }
+            background_task_->WaitForCompletion();
+            delete background_task_;
+            background_task_ = nullptr;
+            vTaskDelay(pdMS_TO_TICKS(1000));
+
+            custom_ota_.StartUpgrade([display](int progress, size_t speed) {
+                char buffer[64];
+                snprintf(buffer, sizeof(buffer), "%d%% %zuKB/s", progress, speed / 1024);
+                display->SetChatMessage("system", buffer);
+            });
+
+            // If upgrade success, the device will reboot and never reach here
+            display->SetStatus(Lang::Strings::UPGRADE_FAILED);
+            ESP_LOGI(TAG, "Firmware upgrade failed...");
+            vTaskDelay(pdMS_TO_TICKS(3000));
+            Reboot();
+        });
+    }else{
+        ESP_LOGI(TAG, "not new version");
+        Close();
+        vTaskDelay(pdMS_TO_TICKS(200));
+        std::string hint = Lang::Strings::VERSION;
+        hint += ": ";
+        hint += custom_ota_.GetCurrentVersion();
+        hint += "\n";
+        hint += Lang::Strings::NEW_VERSION;
+        hint += ": ";
+        hint += custom_ota_.GetFirmwareVersion();
+        hint += "\n";
+        // std::string_view sound;
+        Alert(Lang::Strings::OTA_UPGRADE, hint.c_str(), "happy", Lang::Sounds::P3_SUCCESS);
+    }
+}
+
+void Application::StartCheckNewVersionForCustom() {
+    if(custom_ota_task_is_start){
+        ESP_LOGI(TAG, "NewVersionForCustom is start");
+        return;
+    }
+    
+    custom_ota_task_is_start = true;
+
+    xTaskCreate([](void* arg) {
+        Application* app = (Application*)arg;
+        app->CheckNewVersionForCustom();
+        app->custom_ota_task_is_start = false;
+        vTaskDelete(NULL);
+#ifdef CONFIG_IDF_TARGET_ESP32C2
+    }, "custom_ota", 4096, this, 2, nullptr);
+#else
+    }, "custom_ota", 4096 * 2, this, 2, nullptr);
+#endif
+}
+#endif
 
 void Application::ShowActivationCode() {
     auto& message = ota_.GetActivationMessage();
@@ -507,6 +618,14 @@ void Application::Start() {
     ota_.SetHeader("Accept-Language", Lang::CODE);
     auto app_desc = esp_app_get_description();
     ota_.SetHeader("User-Agent", std::string(BOARD_NAME "/") + app_desc->version);
+
+#ifdef CONFIG_USE_CUSTOM_OTA
+    custom_ota_.SetCheckVersionUrl(CONFIG_CUSTOM_OTA_VERSION_URL);
+    custom_ota_.SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
+    custom_ota_.SetHeader("Client-Id", board.GetUuid());
+    custom_ota_.SetHeader("Accept-Language", Lang::CODE);
+    custom_ota_.SetHeader("User-Agent", std::string(BOARD_NAME "/") + app_desc->version);
+#endif
 
     xTaskCreate([](void* arg) {
         Application* app = (Application*)arg;

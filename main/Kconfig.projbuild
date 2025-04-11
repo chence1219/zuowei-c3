@@ -6,6 +6,19 @@ config OTA_VERSION_URL
     help
         The application will access this URL to check for updates.
 
+config USE_CUSTOM_OTA
+    bool "Use Custom OTA"
+    default n
+    help
+        Enable Custom OTA
+
+config CUSTOM_OTA_VERSION_URL
+    depends on USE_CUSTOM_OTA
+    string "Custom OTA Version URL"
+    default "http://xiaozhi.doit.am/ota/ota.php"
+    help
+        The application will access this URL to check for updates.
+
 choice
     prompt "语言选择"
     default LANGUAGE_ZH_CN

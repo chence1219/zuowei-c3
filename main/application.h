@@ -16,6 +16,7 @@
 
 #include "protocol.h"
 #include "ota.h"
+#include "custom_ota.h"
 #include "background_task.h"
 
 #if CONFIG_USE_WAKE_WORD_DETECT
@@ -72,6 +73,13 @@ public:
     void PlaySound(const std::string_view& sound);
     bool CanEnterSleepMode();
 
+#ifdef CONFIG_USE_CUSTOM_OTA
+    CustomOta& GetCustomOta() {
+        return custom_ota_;
+    }
+    void StartCheckNewVersionForCustom();
+#endif
+
 private:
     Application();
     ~Application();
@@ -83,6 +91,9 @@ private:
     AudioProcessor audio_processor_;
 #endif
     Ota ota_;
+#ifdef CONFIG_USE_CUSTOM_OTA
+    CustomOta custom_ota_;
+#endif
     std::mutex mutex_;
     std::list<std::function<void()>> main_tasks_;
     std::unique_ptr<Protocol> protocol_;
@@ -114,6 +125,10 @@ private:
     OpusResampler reference_resampler_;
     OpusResampler output_resampler_;
 
+#ifdef CONFIG_USE_CUSTOM_OTA
+    bool custom_ota_task_is_start = false;
+#endif
+
     void MainLoop();
     void OnAudioInput();
     void OnAudioOutput();
@@ -128,6 +143,9 @@ private:
     void ResetDecoder();
     void SetDecodeSampleRate(int sample_rate, int frame_duration);
     void CheckNewVersion();
+#ifdef CONFIG_USE_CUSTOM_OTA
+    void CheckNewVersionForCustom();
+#endif
     void ShowActivationCode();
     void OnClockTimer();
     void SetListeningMode(ListeningMode mode);
