@@ -709,7 +709,7 @@ void Application::OnAudioInput() {
         return;
     }
 #endif
-#if CONFIG_FREERTOS_HZ == 1000
+#if CONFIG_FREERTOS_HZ != 1000
     vTaskDelay(pdMS_TO_TICKS(30));
 #endif
 }
