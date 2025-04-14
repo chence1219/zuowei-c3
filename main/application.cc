@@ -659,8 +659,7 @@ void Application::OnAudioOutput() {
             return;
         }
 #ifdef CONFIG_USE_AUDIO_CODEC_DECODE_OPUS
-        // 目前缺少采样率的处理
-        WriteAudio(opus, -1);
+        WriteAudio(opus);
 #else
         std::vector<int16_t> pcm;
         if (!opus_decoder_->Decode(std::move(opus), pcm)) {
@@ -773,7 +772,7 @@ void Application::WriteAudio(std::vector<int16_t>& data, int sample_rate) {
 }
 
 #ifdef CONFIG_USE_AUDIO_CODEC_DECODE_OPUS
-void Application::WriteAudio(std::vector<uint8_t>& opus, int sample_rate) {
+void Application::WriteAudio(std::vector<uint8_t>& opus) {
     auto codec = Board::GetInstance().GetAudioCodec();
     codec->OutputData(opus);
 }
@@ -888,7 +887,8 @@ void Application::ResetDecoder() {
 
 void Application::SetDecodeSampleRate(int sample_rate, int frame_duration) {
 #ifdef CONFIG_USE_AUDIO_CODEC_DECODE_OPUS
-    
+    auto codec = Board::GetInstance().GetAudioCodec();
+    codec->ConfigDecode(sample_rate, 1, frame_duration);
 #else
     if (opus_decoder_->sample_rate() == sample_rate && opus_decoder_->duration_ms() == frame_duration) {
         return;

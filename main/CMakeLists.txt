@@ -183,7 +183,7 @@ if(CONFIG_IDF_TARGET_ESP32)
                              )
 endif()
 
-if(CONFIG_BOARD_TYPE_DOIT_AI_01_KIT OR CONFIG_BOARD_TYPE_DOIT_AI_01_KIT_LCD OR CONFIG_BOARD_TYPE_DOIT_AI_01_KIT_LCD_REMOTE)
+if(CONFIG_USE_AUDIO_CODEC_ENCODE_OPUS OR CONFIG_USE_AUDIO_CODEC_DECODE_OPUS)
     list(APPEND SOURCES "audio_codecs/vb6824_audio_codec.cc")
     list(REMOVE_ITEM SOURCES "audio_codecs/box_audio_codec.cc"
                             "audio_codecs/no_audio_codec.cc"
