@@ -64,6 +64,7 @@ Application::Application() {
         .skip_unhandled_events = true
     };
     esp_timer_create(&clock_timer_args, &clock_timer_handle_);
+    esp_timer_start_periodic(clock_timer_handle_, 1000000);
 }
 
 Application::~Application() {
@@ -112,58 +113,49 @@ void Application::CheckNewVersion() {
             Ota *ota = &ota_;
 #endif
             Alert(Lang::Strings::OTA_UPGRADE, Lang::Strings::UPGRADING, "happy", Lang::Sounds::P3_UPGRADE);
-            // Wait for the chat state to be idle
-            do {
-                vTaskDelay(pdMS_TO_TICKS(3000));
-            } while (GetDeviceState() != kDeviceStateIdle);
 
-            // Use main task to do the upgrade, not cancelable
-            Schedule([this, display, ota]() {
-                SetDeviceState(kDeviceStateUpgrading);
-                
-                display->SetIcon(FONT_AWESOME_DOWNLOAD);
-                std::string message = std::string(Lang::Strings::NEW_VERSION) + ota->GetFirmwareVersion();
-                display->SetChatMessage("system", message.c_str());
+            vTaskDelay(pdMS_TO_TICKS(3000));
 
-                auto& board = Board::GetInstance();
-                board.SetPowerSaveMode(false);
+            SetDeviceState(kDeviceStateUpgrading);
+            
+            display->SetIcon(FONT_AWESOME_DOWNLOAD);
+            std::string message = std::string(Lang::Strings::NEW_VERSION) + ota->GetFirmwareVersion();
+            display->SetChatMessage("system", message.c_str());
+
+            auto& board = Board::GetInstance();
+            board.SetPowerSaveMode(false);
 #if CONFIG_USE_WAKE_WORD_DETECT
-                wake_word_detect_.StopDetection();
+            wake_word_detect_.StopDetection();
 #endif
-                // 预先关闭音频输出，避免升级过程有音频操作
-                auto codec = board.GetAudioCodec();
-                codec->EnableInput(false);
-                codec->EnableOutput(false);
-                {
-                    std::lock_guard<std::mutex> lock(mutex_);
-                    audio_decode_queue_.clear();
-                }
-                background_task_->WaitForCompletion();
-                delete background_task_;
-                background_task_ = nullptr;
-                vTaskDelay(pdMS_TO_TICKS(1000));
+            // 预先关闭音频输出，避免升级过程有音频操作
+            auto codec = board.GetAudioCodec();
+            codec->EnableInput(false);
+            codec->EnableOutput(false);
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                audio_decode_queue_.clear();
+            }
+            background_task_->WaitForCompletion();
+            delete background_task_;
+            background_task_ = nullptr;
+            vTaskDelay(pdMS_TO_TICKS(1000));
 
-                ota->StartUpgrade([display](int progress, size_t speed) {
-                    char buffer[64];
-                    snprintf(buffer, sizeof(buffer), "%d%% %zuKB/s", progress, speed / 1024);
-                    display->SetChatMessage("system", buffer);
-                });
-
-                // If upgrade success, the device will reboot and never reach here
-                display->SetStatus(Lang::Strings::UPGRADE_FAILED);
-                ESP_LOGI(TAG, "Firmware upgrade failed...");
-                vTaskDelay(pdMS_TO_TICKS(3000));
-                Reboot();
+            ota->StartUpgrade([display](int progress, size_t speed) {
+                char buffer[64];
+                snprintf(buffer, sizeof(buffer), "%d%% %zuKB/s", progress, speed / 1024);
+                display->SetChatMessage("system", buffer);
             });
 
+            // If upgrade success, the device will reboot and never reach here
+            display->SetStatus(Lang::Strings::UPGRADE_FAILED);
+            ESP_LOGI(TAG, "Firmware upgrade failed...");
+            vTaskDelay(pdMS_TO_TICKS(3000));
+            Reboot();
             return;
         }
 
         // No new version, mark the current version as valid
         ota_.MarkCurrentVersionValid();
-        std::string message = std::string(Lang::Strings::VERSION) + ota_.GetCurrentVersion();
-        display->ShowNotification(message.c_str());
-    
         if (ota_.HasActivationCode()) {
             // Activation code is valid
             SetDeviceState(kDeviceStateActivating);
@@ -179,11 +171,8 @@ void Application::CheckNewVersion() {
             continue;
         }
 
-        SetDeviceState(kDeviceStateIdle);
-        display->SetChatMessage("system", "");
-        ResetDecoder();
-        PlaySound(Lang::Sounds::P3_SUCCESS);
-        // Exit the loop if upgrade or idle
+        xEventGroupSetBits(event_group_, CHECK_NEW_VERSION_DONE_EVENT);
+        // Exit the loop if done checking new version
         break;
     }
 }
@@ -305,8 +294,6 @@ void Application::ShowActivationCode() {
 
     // This sentence uses 9KB of SRAM, so we need to wait for it to finish
     Alert(Lang::Strings::ACTIVATION, message.c_str(), "happy", Lang::Sounds::P3_ACTIVATION);
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    background_task_->WaitForCompletion();
 
     for (const auto& digit : code) {
         auto it = std::find_if(digit_sounds.begin(), digit_sounds.end(),
@@ -339,6 +326,15 @@ void Application::DismissAlert() {
 }
 
 void Application::PlaySound(const std::string_view& sound) {
+    // Wait for the previous sound to finish
+    {
+        std::unique_lock<std::mutex> lock(mutex_);
+        audio_decode_cv_.wait(lock, [this]() {
+            return audio_decode_queue_.empty();
+        });
+    }
+    background_task_->WaitForCompletion();
+
     // The assets are encoded at 16000Hz, 60ms frame duration
     SetDecodeSampleRate(16000, 60);
 
@@ -431,6 +427,16 @@ void Application::StartListening() {
 }
 
 void Application::StopListening() {
+    const std::array<int, 3> valid_states = {
+        kDeviceStateListening,
+        kDeviceStateSpeaking,
+        kDeviceStateIdle,
+    };
+    // If not valid, do nothing
+    if (std::find(valid_states.begin(), valid_states.end(), device_state_) == valid_states.end()) {
+        return;
+    }
+
     Schedule([this]() {
         if (device_state_ == kDeviceStateListening) {
             protocol_->SendStopListening();
@@ -485,20 +491,12 @@ void Application::Start() {
     }, "audio_loop", 4096 * 2, this, 8, &audio_loop_task_handle_, realtime_chat_enabled_ ? 1 : 0);
 #endif
 
-    /* Start the main loop */
-    xTaskCreatePinnedToCore([](void* arg) {
-        Application* app = (Application*)arg;
-        app->MainLoop();
-        vTaskDelete(NULL);
-#ifdef CONFIG_IDF_TARGET_ESP32C2
-    // }, "main_loop", 4096, this, 4, &main_loop_task_handle_, 0);
-    }, "main_loop", 3584, this, 4, &main_loop_task_handle_, 0);
-#else
-    }, "main_loop", 4096 * 2, this, 4, &main_loop_task_handle_, 0);
-#endif
-
     /* Wait for the network to be ready */
     board.StartNetwork();
+
+    // Check for new firmware version or get the MQTT broker address
+    display->SetStatus(Lang::Strings::CHECKING_NEW_VERSION);
+    CheckNewVersion();
 
     // Initialize the protocol
     display->SetStatus(Lang::Strings::LOADING_PROTOCOL);
@@ -512,8 +510,11 @@ void Application::Start() {
         Alert(Lang::Strings::ERROR, message.c_str(), "sad", Lang::Sounds::P3_EXCLAMATION);
     });
     protocol_->OnIncomingAudio([this](std::vector<uint8_t>&& data) {
+        const int max_packets_in_queue = 300 / OPUS_FRAME_DURATION_MS;
         std::lock_guard<std::mutex> lock(mutex_);
-        audio_decode_queue_.emplace_back(std::move(data));
+        if (audio_decode_queue_.size() < max_packets_in_queue) {
+            audio_decode_queue_.emplace_back(std::move(data));
+        }
     });
     protocol_->OnAudioChannelOpened([this, codec, &board]() {
         board.SetPowerSaveMode(false);
@@ -606,21 +607,13 @@ void Application::Start() {
     });
     protocol_->Start();
 
-    // Check for new firmware version or get the MQTT broker address
-    xTaskCreate([](void* arg) {
-        Application* app = (Application*)arg;
-        app->CheckNewVersion();
-        vTaskDelete(NULL);
-#ifdef CONFIG_IDF_TARGET_ESP32C2
-    }, "check_new_version", 4096, this, 2, nullptr);
-#else
-    }, "check_new_version", 4096 * 2, this, 2, nullptr);
-#endif
-
 #if CONFIG_USE_AUDIO_PROCESSOR
     audio_processor_.Initialize(codec, realtime_chat_enabled_);
     audio_processor_.OnOutput([this](std::vector<int16_t>&& data) {
         background_task_->Schedule([this, data = std::move(data)]() mutable {
+            if (protocol_->IsAudioChannelBusy()) {
+                return;
+            }
             opus_encoder_->Encode(std::move(data), [this](std::vector<uint8_t>&& opus) {
                 Schedule([this, opus = std::move(opus)]() {
                     protocol_->SendAudio(opus);
@@ -675,15 +668,18 @@ void Application::Start() {
     wake_word_detect_.StartDetection();
 #endif
 
+    // Wait for the new version check to finish
+    xEventGroupWaitBits(event_group_, CHECK_NEW_VERSION_DONE_EVENT, pdTRUE, pdFALSE, portMAX_DELAY);
     SetDeviceState(kDeviceStateIdle);
-    esp_timer_start_periodic(clock_timer_handle_, 1000000);
-
-#if 0
-    while (true) {
-        SystemInfo::PrintRealTimeStats(pdMS_TO_TICKS(1000));
-        vTaskDelay(pdMS_TO_TICKS(10000));
-    }
-#endif
+    std::string message = std::string(Lang::Strings::VERSION) + ota_.GetCurrentVersion();
+    display->ShowNotification(message.c_str());
+    display->SetChatMessage("system", "");
+    // Play the success sound to indicate the device is ready
+    ResetDecoder();
+    PlaySound(Lang::Sounds::P3_SUCCESS);
+    
+    // Enter the main event loop
+    MainEventLoop();
 }
 
 void Application::Close() {
@@ -707,6 +703,8 @@ void Application::OnClockTimer() {
 
     // Print the debug info every 10 seconds
     if (clock_ticks_ % 10 == 0) {
+        // SystemInfo::PrintRealTimeStats(pdMS_TO_TICKS(1000));
+
         int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
         int min_free_sram = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
         ESP_LOGI(TAG, "Free internal: %u minimal internal: %u", free_sram, min_free_sram);
@@ -743,10 +741,10 @@ void Application::Schedule(std::function<void()> callback) {
     xEventGroupSetBits(event_group_, SCHEDULE_EVENT);
 }
 
-// The Main Loop controls the chat state and websocket connection
+// The Main Event Loop controls the chat state and websocket connection
 // If other tasks need to access the websocket or chat state,
 // they should use Schedule to call this function
-void Application::MainLoop() {
+void Application::MainEventLoop() {
     while (true) {
         auto bits = xEventGroupWaitBits(event_group_, SCHEDULE_EVENT, pdTRUE, pdFALSE, portMAX_DELAY);
 
@@ -776,6 +774,10 @@ void Application::AudioLoop() {
 }
 
 void Application::OnAudioOutput() {
+    if (busy_decoding_audio_) {
+        return;
+    }
+
     auto now = std::chrono::steady_clock::now();
     auto codec = Board::GetInstance().GetAudioCodec();
     const int max_silence_seconds = 10;
@@ -794,14 +796,18 @@ void Application::OnAudioOutput() {
 
     if (device_state_ == kDeviceStateListening) {
         audio_decode_queue_.clear();
+        audio_decode_cv_.notify_all();
         return;
     }
 
     auto opus = std::move(audio_decode_queue_.front());
     audio_decode_queue_.pop_front();
     lock.unlock();
+    audio_decode_cv_.notify_all();
 
+    busy_decoding_audio_ = true;
     background_task_->Schedule([this, codec, opus = std::move(opus)]() mutable {
+        busy_decoding_audio_ = false;
         if (aborted_) {
             return;
         }
@@ -819,10 +825,9 @@ void Application::OnAudioOutput() {
 }
 
 void Application::OnAudioInput() {
-    std::vector<int16_t> data;
-
 #if CONFIG_USE_WAKE_WORD_DETECT
     if (wake_word_detect_.IsDetectionRunning()) {
+        std::vector<int16_t> data;
         ReadAudio(data, 16000, wake_word_detect_.GetFeedSize());
         wake_word_detect_.Feed(data);
         return;
@@ -830,6 +835,7 @@ void Application::OnAudioInput() {
 #endif
 #if CONFIG_USE_AUDIO_PROCESSOR
     if (audio_processor_.IsRunning()) {
+        std::vector<int16_t> data;
         ReadAudio(data, 16000, audio_processor_.GetFeedSize());
         audio_processor_.Feed(data);
         return;
@@ -838,13 +844,19 @@ void Application::OnAudioInput() {
     if (device_state_ == kDeviceStateListening) {
 #ifdef CONFIG_USE_AUDIO_CODEC_ENCODE_OPUS
         std::vector<uint8_t> opus;
-        ReadAudio(opus, 16000, 30 * 16000 / 1000);
-        Schedule([this, opus = std::move(opus)]() {
-            protocol_->SendAudio(opus);
-        });
+        if (!protocol_->IsAudioChannelBusy()) {
+            ReadAudio(opus, 16000, 30 * 16000 / 1000);
+            Schedule([this, opus = std::move(opus)]() {
+                protocol_->SendAudio(opus);
+            });
+        }
 #else
+        std::vector<int16_t> data;
         ReadAudio(data, 16000, 30 * 16000 / 1000);
         background_task_->Schedule([this, data = std::move(data)]() mutable {
+            if (protocol_->IsAudioChannelBusy()) {
+                return;
+            }
             opus_encoder_->Encode(std::move(data), [this](std::vector<uint8_t>&& opus) {
                 Schedule([this, opus = std::move(opus)]() {
                     protocol_->SendAudio(opus);
@@ -1026,6 +1038,7 @@ void Application::ResetDecoder() {
     opus_decoder_->ResetState();
 #endif
     audio_decode_queue_.clear();
+    audio_decode_cv_.notify_all();
     last_output_time_ = std::chrono::steady_clock::now();
     
     auto codec = Board::GetInstance().GetAudioCodec();

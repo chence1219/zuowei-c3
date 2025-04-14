@@ -9,6 +9,8 @@
 #include <string>
 #include <mutex>
 #include <list>
+#include <vector>
+#include <condition_variable>
 
 #include <opus_encoder.h>
 #include <opus_decoder.h>
@@ -29,6 +31,7 @@
 #define SCHEDULE_EVENT (1 << 0)
 #define AUDIO_INPUT_READY_EVENT (1 << 1)
 #define AUDIO_OUTPUT_READY_EVENT (1 << 2)
+#define CHECK_NEW_VERSION_DONE_EVENT (1 << 3)
 
 enum DeviceState {
     kDeviceStateUnknown,
@@ -108,8 +111,8 @@ private:
 #endif
     bool aborted_ = false;
     bool voice_detected_ = false;
+    bool busy_decoding_audio_ = false;
     int clock_ticks_ = 0;
-    TaskHandle_t main_loop_task_handle_ = nullptr;
     TaskHandle_t check_new_version_task_handle_ = nullptr;
 
     // Audio encode / decode
@@ -117,6 +120,7 @@ private:
     BackgroundTask* background_task_ = nullptr;
     std::chrono::steady_clock::time_point last_output_time_;
     std::list<std::vector<uint8_t>> audio_decode_queue_;
+    std::condition_variable audio_decode_cv_;
 
     std::unique_ptr<OpusEncoderWrapper> opus_encoder_;
     std::unique_ptr<OpusDecoderWrapper> opus_decoder_;
@@ -129,7 +133,7 @@ private:
     bool custom_ota_task_is_start = false;
 #endif
 
-    void MainLoop();
+    void MainEventLoop();
     void OnAudioInput();
     void OnAudioOutput();
     void ReadAudio(std::vector<int16_t>& data, int sample_rate, int samples);
