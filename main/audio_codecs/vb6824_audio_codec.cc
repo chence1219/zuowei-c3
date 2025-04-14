@@ -114,4 +114,11 @@ int VbAduioCodec::Write(uint8_t* opus, int samples) {
     vb6824_audio_write((uint8_t *)data, samples);
     return samples;
 }
+
+bool ConfigDecode(int sample_rate, int channels, int duration_ms) {
+    input_sample_rate_ = sample_rate;
+    input_channels_ = channels;
+    duration_ms_ = duration_ms;
+    return true;
+}
 #endif

@@ -78,7 +78,7 @@ file(GLOB LANG_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_ASSETS_PATH}/${LANG_D
 file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_ASSETS_PATH}/common/*.p3)
 
 list(APPEND SOURCES "audio_codecs/vb6824_audio_codec.cc")
-if(USE_AUDIO_CODEC_ENCODE_OPUS OR USE_AUDIO_CODEC_DECODE_OPUS)
+if(CONFIG_USE_AUDIO_CODEC_ENCODE_OPUS OR CONFIG_USE_AUDIO_CODEC_DECODE_OPUS)
 list(REMOVE_ITEM SOURCES "audio_codecs/box_audio_codec.cc"
                         "audio_codecs/no_audio_codec.cc"
                         "audio_codecs/box_audio_codec.cc"
