@@ -70,16 +70,22 @@ void AudioCodec::Start() {
     
 #ifdef CONFIG_USE_AUDIO_CODEC_DECODE_OPUS
 #else
+#ifdef CONFIG_IDF_TARGET_ESP32C2
+#else
     if(tx_handle_){
         ESP_ERROR_CHECK(i2s_channel_enable(tx_handle_));
     }
 #endif
+#endif
 
 #ifdef CONFIG_USE_AUDIO_CODEC_ENCODE_OPUS
+#else
+#ifdef CONFIG_IDF_TARGET_ESP32C2
 #else
     if(rx_handle_){
         ESP_ERROR_CHECK(i2s_channel_enable(rx_handle_));
     }
+#endif
 #endif
 
     EnableInput(true);
