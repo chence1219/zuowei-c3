@@ -663,7 +663,7 @@ void Application::AudioLoop() {
             OnAudioOutput();
         }
 #if CONFIG_FREERTOS_HZ == 1000
-        vTaskDelay(pdMS_TO_TICKS(2));
+        vTaskDelay(pdMS_TO_TICKS(10));
 #endif
     }
 }
@@ -699,6 +699,11 @@ void Application::OnAudioOutput() {
     audio_decode_queue_.pop_front();
     lock.unlock();
     audio_decode_cv_.notify_all();
+
+    int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+    if(free_sram < 5000){
+        return;
+    }
 
     busy_decoding_audio_ = true;
     background_task_->Schedule([this, codec, opus = std::move(opus)]() mutable {
@@ -743,6 +748,11 @@ void Application::OnAudioInput() {
     }
 #else
     if (device_state_ == kDeviceStateListening) {
+        int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+        if(free_sram < 5000){
+            return;
+        }
+        
 #ifdef CONFIG_USE_AUDIO_CODEC_ENCODE_OPUS
         std::vector<uint8_t> opus;
         if (!protocol_->IsAudioChannelBusy()) {
