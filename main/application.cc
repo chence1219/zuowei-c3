@@ -529,7 +529,11 @@ void Application::Start() {
         Alert(Lang::Strings::ERROR, message.c_str(), "sad", Lang::Sounds::P3_EXCLAMATION);
     });
     protocol_->OnIncomingAudio([this](std::vector<uint8_t>&& data) {
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+        const int max_packets_in_queue = 600 / OPUS_FRAME_DURATION_MS;
+#else
         const int max_packets_in_queue = 300 / OPUS_FRAME_DURATION_MS;
+#endif
         std::lock_guard<std::mutex> lock(mutex_);
         if (audio_decode_queue_.size() < max_packets_in_queue) {
             audio_decode_queue_.emplace_back(std::move(data));
@@ -847,7 +851,11 @@ void Application::OnAudioOutput() {
     audio_decode_cv_.notify_all();
 
     int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+    if(free_sram < 10000){
+#else
     if(free_sram < 5000){
+#endif
         return;
     }
 
@@ -895,7 +903,11 @@ void Application::OnAudioInput() {
 #else
     if (device_state_ == kDeviceStateListening) {
         int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+        if(free_sram < 10000){
+#else
         if(free_sram < 5000){
+#endif
             return;
         }
         
