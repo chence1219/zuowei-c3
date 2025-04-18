@@ -747,7 +747,11 @@ void Application::OnAudioInput() {
         }
     }
 #else
+#if CONFIG_USE_REALTIME_CHAT
+    if (device_state_ == kDeviceStateListening || realtime_chat_is_start_) {
+#else
     if (device_state_ == kDeviceStateListening) {
+#endif
         int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
         if(free_sram < 5000){
             return;
@@ -886,6 +890,9 @@ void Application::SetDeviceState(DeviceState state) {
 #if CONFIG_USE_WAKE_WORD_DETECT
             wake_word_detect_.StartDetection();
 #endif
+#if CONFIG_USE_REALTIME_CHAT
+            realtime_chat_is_start_ = false;
+#endif
             break;
         case kDeviceStateConnecting:
             display->SetStatus(Lang::Strings::CONNECTING);
@@ -904,6 +911,11 @@ void Application::SetDeviceState(DeviceState state) {
             if (!audio_processor_.IsRunning()) {
 #else
             if (true) {
+#if CONFIG_USE_REALTIME_CHAT
+                if(realtime_chat_is_start_){
+                    break;
+                }
+#endif
 #endif
                 // Send the start listening command
                 protocol_->SendStartListening(listening_mode_);
@@ -921,6 +933,9 @@ void Application::SetDeviceState(DeviceState state) {
 #if CONFIG_USE_AUDIO_PROCESSOR
                 audio_processor_.Start();
 #endif
+#if CONFIG_USE_REALTIME_CHAT
+                realtime_chat_is_start_ = true;
+#endif
             }
             break;
         case kDeviceStateSpeaking:
@@ -932,6 +947,9 @@ void Application::SetDeviceState(DeviceState state) {
 #endif
 #if CONFIG_USE_WAKE_WORD_DETECT
                 wake_word_detect_.StartDetection();
+#endif
+#if CONFIG_USE_REALTIME_CHAT
+                realtime_chat_is_start_ = false;
 #endif
             }
             ResetDecoder();

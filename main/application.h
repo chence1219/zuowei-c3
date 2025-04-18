@@ -94,6 +94,7 @@ private:
     ListeningMode listening_mode_ = kListeningModeAutoStop;
 #if CONFIG_USE_REALTIME_CHAT
     bool realtime_chat_enabled_ = true;
+    bool realtime_chat_is_start_ = false;
 #else
     bool realtime_chat_enabled_ = false;
 #endif
