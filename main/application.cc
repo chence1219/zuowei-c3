@@ -387,7 +387,11 @@ void Application::Start() {
     }, "audio_loop", 2048, this, 8, &audio_loop_task_handle_, 0);
     // }, "audio_loop", 1024, this, 8, &audio_loop_task_handle_, 0);
 #else
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+    }, "audio_loop", 4096 * 2, this, 8, &audio_loop_task_handle_, 0);
+#else
     }, "audio_loop", 4096 * 2, this, 8, &audio_loop_task_handle_, realtime_chat_enabled_ ? 1 : 0);
+#endif
 #endif
 
     /* Wait for the network to be ready */
