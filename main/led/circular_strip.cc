@@ -18,10 +18,18 @@ CircularStrip::CircularStrip(gpio_num_t gpio, uint8_t max_leds) : max_leds_(max_
     strip_config.led_pixel_format = LED_PIXEL_FORMAT_GRB;
     strip_config.led_model = LED_MODEL_WS2812;
 
+#ifdef CONFIG_IDF_TARGET_ESP32C2
+    led_strip_spi_config_t spi_config = {};
+    spi_config.clk_src = SPI_CLK_SRC_XTAL;
+    spi_config.spi_bus = SPI2_HOST;
+    spi_config.flags.with_dma = true;
+    ESP_ERROR_CHECK(led_strip_new_spi_device(&strip_config, &spi_config, &led_strip_));
+#else
     led_strip_rmt_config_t rmt_config = {};
     rmt_config.resolution_hz = 10 * 1000 * 1000; // 10MHz
 
     ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip_));
+#endif
     led_strip_clear(led_strip_);
 
     esp_timer_create_args_t strip_timer_args = {

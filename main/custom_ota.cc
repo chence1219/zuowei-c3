@@ -20,7 +20,7 @@
 
 CustomOta::CustomOta() {
 #ifdef CONFIG_USE_CUSTOM_OTA
-    SetCheckVersionUrl(CONFIG_CUSTOM_OTA_VERSION_URL);
+    check_version_url_ = CONFIG_CUSTOM_OTA_VERSION_URL;
 #endif
 }
 
