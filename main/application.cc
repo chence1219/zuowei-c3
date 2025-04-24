@@ -718,7 +718,7 @@ void Application::OnAudioOutput() {
     audio_decode_cv_.notify_all();
 
     int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
-    if(free_sram < 5000){
+    if(free_sram < 10000){
         return;
     }
 
@@ -770,7 +770,7 @@ void Application::OnAudioInput() {
     if (device_state_ == kDeviceStateListening) {
 #endif
         int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
-        if(free_sram < 5000){
+        if(free_sram < 10000){
             return;
         }
         
