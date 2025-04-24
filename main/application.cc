@@ -868,11 +868,7 @@ void Application::OnAudioOutput() {
     audio_decode_cv_.notify_all();
 
     int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
-#ifdef CONFIG_IDF_TARGET_ESP32C3
     if(free_sram < 10000){
-#else
-    if(free_sram < 5000){
-#endif
         return;
     }
 
@@ -924,11 +920,7 @@ void Application::OnAudioInput() {
     if (device_state_ == kDeviceStateListening) {
 #endif
         int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
-#ifdef CONFIG_IDF_TARGET_ESP32C3
         if(free_sram < 10000){
-#else
-        if(free_sram < 5000){
-#endif
             return;
         }
         
