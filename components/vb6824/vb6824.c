@@ -238,27 +238,11 @@ void __uart_init(gpio_num_t tx, gpio_num_t rx){
     uart_driver_install(UART_NUM, UART_RX_BUFFER_SIZE, UART_TX_BUFFER_SIZE, UART_QUEUE_SIZE, &g_uart_queue, intr_alloc_flags);
     uart_param_config(UART_NUM, &uart_config);
     uart_set_pin(UART_NUM, tx, rx, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-#ifdef CONFIG_IDF_TARGET_ESP32C2
-    xTaskCreate(__uart_task, "__uart_task", 1024 * 3, NULL, 9, NULL);
-    // xTaskCreate(__uart_task, "__uart_task", 1024 * 2 + 256, NULL, 9, NULL);
-#else
-    xTaskCreate(__uart_task, "__uart_task", 1024 * 4, NULL, 9, NULL);
-#endif
+
+    xTaskCreate(__uart_task, "__uart_task", CONFIG_VB6824_UART_TASK_STACK_SIZE, NULL, 9, NULL);
 }
 
-// void __send_timer_cb(void* arg){
-//     size_t item_size = 0;
-// #if defined(CONFIG_VB6824_TYPE_OPUS_16K_20MS)
-//     uint8_t *item = (uint8_t *)xRingbufferReceive(g_tx_ringbuffer, &item_size, 0);
-// #else
-//     uint8_t *item = (uint8_t *)xRingbufferReceiveUpTo(g_tx_ringbuffer, &item_size, 0, AUDIO_SEND_CHENK_LEN);
-// #endif
-//     if (item != NULL) {
-//         __frame_send(VB6824_CMD_SEND_PCM, (uint8_t *)item, item_size);
-//         vRingbufferReturnItem(g_tx_ringbuffer, (void *)item);
-//     }
-// }
-
+#ifdef CONFIG_VB6824_SEND_USE_TASK
 void __send_task(void *arg) {
     TickType_t last_time = xTaskGetTickCount();
     while (1)
@@ -284,6 +268,20 @@ void __send_task(void *arg) {
         }
     }
 }
+#else
+void __send_timer_cb(void* arg){
+    size_t item_size = 0;
+#if defined(CONFIG_VB6824_TYPE_OPUS_16K_20MS)
+    uint8_t *item = (uint8_t *)xRingbufferReceive(g_tx_ringbuffer, &item_size, 0);
+#else
+    uint8_t *item = (uint8_t *)xRingbufferReceiveUpTo(g_tx_ringbuffer, &item_size, 0, AUDIO_SEND_CHENK_LEN);
+#endif
+    if (item != NULL) {
+        __frame_send(VB6824_CMD_SEND_PCM, (uint8_t *)item, item_size);
+        vRingbufferReturnItem(g_tx_ringbuffer, (void *)item);
+    }
+}
+#endif
 
 void __vb6824_frame_cb(uint8_t *data, uint16_t len){
     vb6824_frame_t *frame = (vb6824_frame_t *)data;
@@ -430,20 +428,21 @@ void vb6824_init(gpio_num_t tx, gpio_num_t rx){
     g_tx_ringbuffer = xRingbufferCreate(SEND_BUF_LENGTH, RINGBUF_TYPE_BYTEBUF);
 #endif
 
-    xTaskCreate(__send_task, "__send_task", 2048, NULL, 9, NULL);
-    // xTaskCreate(__send_task, "__send_task", 1024, NULL, 9, NULL);
-
-    // esp_timer_handle_t send_timer = NULL;
-    // esp_timer_create_args_t timer_args = {
-    //     .callback = __send_timer_cb,
-    //     .dispatch_method = ESP_TIMER_TASK,
-    //     .name = "vb_send",
-    //     .skip_unhandled_events = true,
-    // };
-    // esp_timer_create(&timer_args, &send_timer);
-    // if(send_timer){
-    //     esp_timer_start_periodic(send_timer, AUDIO_SEND_CHENK_MS*1000);
-    // }else{
-    //     ESP_LOGE(TAG, "send_timer is null");
-    // }
+#ifdef CONFIG_VB6824_SEND_USE_TASK
+    xTaskCreate(__send_task, "__send_task", CONFIG_VB6824_SEND_TASK_STACK_SIZE, NULL, 9, NULL);
+#else
+    esp_timer_handle_t send_timer = NULL;
+    esp_timer_create_args_t timer_args = {
+        .callback = __send_timer_cb,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "vb_send",
+        .skip_unhandled_events = true,
+    };
+    esp_timer_create(&timer_args, &send_timer);
+    if(send_timer){
+        esp_timer_start_periodic(send_timer, AUDIO_SEND_CHENK_MS*1000);
+    }else{
+        ESP_LOGE(TAG, "send_timer is null");
+    }
+#endif
 }

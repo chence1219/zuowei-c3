@@ -67,14 +67,6 @@ config SPEAKING_FIRST_MUTE_TIME
     help
         讲话之前静音时间
 
-config USE_AUDIO_CODEC_ENCODE_OPUS
-    bool "use audio codec encode opus"
-    default y
-
-config USE_AUDIO_CODEC_DECODE_OPUS
-    bool "use audio codec decode opus"
-    default n
-
 config USE_WAKE_WORD_DETECT
     bool "启用唤醒词检测"
     default y
@@ -94,4 +86,24 @@ config USE_REALTIME_CHAT
     default n
     help
         需要 ESP32 S3 与 AEC 开启，因为性能不够，不建议和微信聊天界面风格同时开启
+
+config USE_AUDIO_CODEC_ENCODE_OPUS
+    bool "use audio codec encode opus"
+    default y
+
+config USE_AUDIO_CODEC_DECODE_OPUS
+    bool "use audio codec decode opus"
+    default n
+
+config TACKGROUND_TASK_STACK_SIZE
+    int "background task stack size"
+    default 2048 if ((IDF_TARGET_ESP32C2 || IDF_TARGET_ESP32C3) && (USE_AUDIO_CODEC_ENCODE_OPUS && USE_AUDIO_CODEC_DECODE_OPUS))
+    default 8960 if ((IDF_TARGET_ESP32C2 || IDF_TARGET_ESP32C3) && (USE_AUDIO_CODEC_ENCODE_OPUS))
+    default 26624 if ((IDF_TARGET_ESP32C2 || IDF_TARGET_ESP32C3))
+    default 32768
+
+config AUDIO_LOOP_TASK_STACK_SIZE
+    int "audio_loop task stack size"
+    default 2048 if IDF_TARGET_ESP32C2
+    default 8192
 endmenu
