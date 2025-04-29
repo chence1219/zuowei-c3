@@ -10,6 +10,9 @@ menu "VB6824"
     config VB6824_TYPE_OPUS_16K_20MS_PCM_16K
         bool "OPUS 16K 20ms(input) + PCM 16K(output)"
 	endchoice
+    config VB6824_OTA_SUPPORT
+        bool "6824支持升级"
+        default n
 
     config VB6824_UART_TASK_STACK_SIZE
         int "uart task stack size"

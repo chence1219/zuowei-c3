@@ -4,7 +4,7 @@
 #include "audio_codec.h"
 #include <driver/gpio.h>
 #include <esp_timer.h>
-
+#include "vb6824.h"
 #include <functional>
 
 #include "freertos/timers.h"
@@ -23,6 +23,11 @@ private:
 #endif
     std::function<void(std::string)> on_wake_up_;
     bool frist_volume_is_set = false;
+#if defined(CONFIG_VB6824_OTA_SUPPORT) && CONFIG_VB6824_OTA_SUPPORT == 1
+    std::function<void(vb6824_evt_t,uint32_t)> on_vb_evt_;
+    void Event(vb6824_evt_t event_id, uint32_t data);
+#endif
+
 public:
     VbAduioCodec(gpio_num_t tx, gpio_num_t rx);
     void OnWakeUp(std::function<void(std::string)> callback);
@@ -33,6 +38,9 @@ public:
 #endif
     virtual void EnableInput(bool enable) override; 
     virtual void EnableOutput(bool enable) override; 
+#if defined(CONFIG_VB6824_OTA_SUPPORT) && CONFIG_VB6824_OTA_SUPPORT == 1
+    void OnEvent(std::function<void(vb6824_evt_t,uint32_t)> callback);
+#endif
 };
 
 #endif

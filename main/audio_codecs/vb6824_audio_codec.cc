@@ -29,6 +29,18 @@ void VbAduioCodec::OnWakeUp(std::function<void(std::string)> callback) {
     on_wake_up_ = callback;
 }
 
+#if defined(CONFIG_VB6824_OTA_SUPPORT) && CONFIG_VB6824_OTA_SUPPORT == 1
+void VbAduioCodec::Event(vb6824_evt_t event_id, uint32_t data) {
+    if (on_vb_evt_) {
+        on_vb_evt_(event_id, data);
+    }
+}
+
+void VbAduioCodec::OnEvent(std::function<void(vb6824_evt_t,uint32_t)> callback) {
+    on_vb_evt_ = callback;
+}
+#endif
+
 VbAduioCodec::VbAduioCodec(gpio_num_t tx, gpio_num_t rx) {
 
     input_sample_rate_ = VB_RECO_SAMPLE_RATE;
@@ -40,6 +52,14 @@ VbAduioCodec::VbAduioCodec(gpio_num_t tx, gpio_num_t rx) {
         auto this_ = (VbAduioCodec*)arg;
         this_->WakeUp(command);
     }, this);
+
+#if defined(CONFIG_VB6824_OTA_SUPPORT) && CONFIG_VB6824_OTA_SUPPORT == 1
+    vb6824_register_event_cb([](vb6824_evt_t event_id, uint32_t data, void *arg){
+        auto this_ = (VbAduioCodec*)arg;
+        this_->Event(event_id, data);
+    }, this);
+#endif
+
 }
 
 void VbAduioCodec::Start() {
