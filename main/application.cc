@@ -38,18 +38,7 @@ static const char* const STATE_STRINGS[] = {
 
 Application::Application() {
     event_group_ = xEventGroupCreate();
-#if (defined(CONFIG_IDF_TARGET_ESP32C2) || defined(CONFIG_IDF_TARGET_ESP32C3))
-#if (defined(CONFIG_USE_AUDIO_CODEC_ENCODE_OPUS) && defined(CONFIG_USE_AUDIO_CODEC_DECODE_OPUS))
-    background_task_ = new BackgroundTask(2048);
-#elif (defined(CONFIG_USE_AUDIO_CODEC_ENCODE_OPUS))
-    background_task_ = new BackgroundTask(4096 * 2 + 768);
-    // background_task_ = new BackgroundTask(4096 * 2 + 512);
-#else
-    background_task_ = new BackgroundTask(4096 * 6 + 2048);
-#endif
-#else
-    background_task_ = new BackgroundTask(4096 * 8);
-#endif
+    background_task_ = new BackgroundTask(CONFIG_TACKGROUND_TASK_STACK_SIZE);
 
     esp_timer_create_args_t clock_timer_args = {
         .callback = [](void* arg) {
@@ -388,15 +377,10 @@ void Application::Start() {
         Application* app = (Application*)arg;
         app->AudioLoop();
         vTaskDelete(NULL);
-#ifdef CONFIG_IDF_TARGET_ESP32C2
-    }, "audio_loop", 2048, this, 8, &audio_loop_task_handle_, 0);
-    // }, "audio_loop", 1024, this, 8, &audio_loop_task_handle_, 0);
+#if defined(CONFIG_IDF_TARGET_ESP32C2) || defined(CONFIG_IDF_TARGET_ESP32C3)
+    }, "audio_loop", CONFIG_AUDIO_LOOP_TASK_STACK_SIZE, this, 8, &audio_loop_task_handle_, 0);
 #else
-#ifdef CONFIG_IDF_TARGET_ESP32C3
-    }, "audio_loop", 4096 * 2, this, 8, &audio_loop_task_handle_, 0);
-#else
-    }, "audio_loop", 4096 * 2, this, 8, &audio_loop_task_handle_, realtime_chat_enabled_ ? 1 : 0);
-#endif
+    }, "audio_loop", CONFIG_AUDIO_LOOP_TASK_STACK_SIZE, this, 8, &audio_loop_task_handle_, realtime_chat_enabled_ ? 1 : 0);
 #endif
 
     /* Wait for the network to be ready */
