@@ -755,7 +755,7 @@ void Application::OnClockTimer() {
         int min_free_sram = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
         ESP_LOGI(TAG, "Free internal: %u minimal internal: %u", free_sram, min_free_sram);
 
-#if 1
+#if 0
         char pcWriteBuffer[1024];
         // 生成任务列表信息到缓冲区
         vTaskList(pcWriteBuffer);
