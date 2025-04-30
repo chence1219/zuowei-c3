@@ -4,6 +4,7 @@
 
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "vb_ota.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -71,18 +72,42 @@ typedef enum
 {
     VB6824_CMD_RECV_PCM = 0x2080,
     VB6824_CMD_RECV_CTL = 0x0180,
+    VB6824_CMD_RECV_WAKEUP_WORD = 0x0280,
+    VB6824_CMD_RECV_OTA = 0x0105,
     VB6824_CMD_SEND_PCM = 0x2081,
     VB6824_CMD_SEND_PCM_EOF = 0x0201,
     VB6824_CMD_SEND_CTL = 0x0202,
     VB6824_CMD_SEND_VOLUM = 0x0203,
+    VB6824_CMD_SEND_OTA = 0x0205,
+    VB6824_CMD_SEND_GET_WAKEUP_WORD = 0x0207,
 }vb6824_cmd_t;
+typedef enum
+{
+    VB6824_MODE_AUDIO = 0,
+    VB6824_MODE_OTA   = 1,
+}vb6824_mode_t;
 
 static QueueHandle_t g_uart_queue = NULL;
 static RingbufHandle_t g_rx_ringbuffer = NULL;
 static RingbufHandle_t g_tx_ringbuffer = NULL;
+static vb6824_mode_t s_mode = VB6824_MODE_AUDIO;
+
+static esp_timer_handle_t start_ota_timer = NULL;
+static esp_timer_handle_t check_wakeword = NULL;
+
+
+#if defined(CONFIG_VB6824_OTA_SUPPORT) && CONFIG_VB6824_OTA_SUPPORT == 1
+#include "vb_ota.h"
+static jl_ota_event_t s_ota_evt = NULL;
+#endif
+static uint8_t s_wait_fresh_wakeup_word = 1;
+static uint8_t s_wait_vb_hello = 1;
+static char s_wakeup_word[32] = {"你好小智"};
 
 static void *g_voice_command_cb_arg = NULL;
+static void *g_voice_event_cb_arg = NULL;
 static vb_voice_command_cb_t g_voice_command_cb = NULL;
+static vb_voice_event_cb_t g_voice_event_cb = NULL;
 
 static bool g_input_enabled = false;
 static bool g_output_enabled = false;
@@ -100,6 +125,14 @@ static inline int __sum_bytes(const uint8_t* bytes, uint16_t size) {
 void __frame_parse_data(uint8_t *data, uint16_t len){
     uint16_t parse_len = 0;
     uint8_t *parse_data = NULL;
+
+#if defined(CONFIG_VB6824_OTA_SUPPORT) && CONFIG_VB6824_OTA_SUPPORT == 1
+    if (s_mode == VB6824_MODE_OTA)
+    {
+        jl_ondata(data, len);
+        // return;
+    }
+#endif
 
     static uint16_t tmp_len = {0};
     static uint8_t tmp_data[(FRAME_MAX_LIN) * 2] = {0};
@@ -259,7 +292,10 @@ void __send_task(void *arg) {
                 if((now_time - last_time) >= pdMS_TO_TICKS(AUDIO_SEND_CHENK_MS)){
                     last_time = xTaskGetTickCount();
                 }
-                __frame_send(VB6824_CMD_SEND_PCM, (uint8_t *)item, item_size);
+                if (s_mode == VB6824_MODE_AUDIO)
+                {
+                    __frame_send(VB6824_CMD_SEND_PCM, (uint8_t *)item, item_size);
+                }
                 vRingbufferReturnItem(g_tx_ringbuffer, (void *)item);
                 vTaskDelayUntil(&last_time, pdMS_TO_TICKS(AUDIO_SEND_CHENK_MS));
             }
@@ -283,6 +319,49 @@ void __send_timer_cb(void* arg){
 }
 #endif
 
+#if defined(CONFIG_VB6824_OTA_SUPPORT) && CONFIG_VB6824_OTA_SUPPORT == 1
+static void vb_ota_evt_cb(jl_ota_evt_id evt, uint32_t data){
+    switch (evt)
+    {
+    case JL_OTA_START:
+        s_wait_fresh_wakeup_word = 1;
+        s_mode = VB6824_MODE_OTA;
+        break;
+    case JL_OTA_STOP:
+        s_mode = VB6824_MODE_AUDIO;    
+        break;
+    case JL_OTA_PROCESS:
+        break;
+    case JL_OTA_FAIL:
+        s_mode = VB6824_MODE_AUDIO;    
+    case JL_OTA_SUCCESS:
+        s_mode = VB6824_MODE_AUDIO; 
+        do
+        {
+            __frame_send(VB6824_CMD_SEND_GET_WAKEUP_WORD, &s_mode, 1);
+            // ESP_LOGW(TAG, "WAIT FRESH");
+            vTaskDelay(100/portTICK_PERIOD_MS);
+        } while (s_wait_fresh_wakeup_word);
+        data = (uint32_t)s_wakeup_word;
+        break;
+    default:
+        break;
+    }
+    if (s_ota_evt)
+    {
+        s_ota_evt(evt, data);
+    }
+    
+    vTaskDelay(100/portTICK_PERIOD_MS);
+    if (evt == JL_OTA_SUCCESS)
+    {    
+        jl_ws_stop();
+        esp_restart();
+    }
+    
+}
+#endif
+
 void __vb6824_frame_cb(uint8_t *data, uint16_t len){
     vb6824_frame_t *frame = (vb6824_frame_t *)data;
     frame->len = SWAP_16(frame->len);
@@ -292,6 +371,9 @@ void __vb6824_frame_cb(uint8_t *data, uint16_t len){
     switch (frame->cmd)
     {
     case VB6824_CMD_RECV_PCM:{
+        if(s_wait_vb_hello){
+            s_wait_vb_hello = 0;
+        }
         if(g_input_enabled){
             while(xRingbufferGetCurFreeSize(g_rx_ringbuffer) < frame->len){
                 size_t item_size = 0;
@@ -312,14 +394,49 @@ void __vb6824_frame_cb(uint8_t *data, uint16_t len){
     } 
     case VB6824_CMD_RECV_CTL:{
         ESP_LOGI(TAG, "vb6824 recv cmd: %04x, len: %d :%.*s", frame->cmd, frame->len, frame->len, frame->data);
+#if defined(CONFIG_VB6824_OTA_SUPPORT) && CONFIG_VB6824_OTA_SUPPORT == 1
+        if (strcmp((char *)frame->data, "升级模式") == 0)
+        {
+            if (g_voice_event_cb)
+            {
+                g_voice_event_cb(VB6824_EVT_OTA_ENTER, 0, g_voice_event_cb_arg);
+            }
+            break;
+        }
+        if (jl_ws_is_start()==1)
+        {
+            break;
+        }
+#endif
         if(g_voice_command_cb){
             g_voice_command_cb((char *)frame->data, frame->len, g_voice_command_cb_arg);
         }
         break;
     }
+#if defined(CONFIG_VB6824_OTA_SUPPORT) && CONFIG_VB6824_OTA_SUPPORT == 1
+    case VB6824_CMD_RECV_OTA:
+        s_mode = VB6824_MODE_OTA;
+        if (g_voice_event_cb)
+        {
+            g_voice_event_cb(VB6824_EVT_OTA_START, 0, g_voice_event_cb_arg);
+        }
+        jl_ota_start(vb_ota_evt_cb);
+        break;
+#endif
+    case VB6824_CMD_RECV_WAKEUP_WORD:
+        s_wait_fresh_wakeup_word = 0;    
+        ESP_LOGI(TAG, "VB6824_CMD_SEND_GET_WAKEUP_WORD: %04x, len: %d :%.*s", frame->cmd, frame->len, frame->len, frame->data);
+        memset(s_wakeup_word, 0, sizeof(s_wakeup_word));
+        strncpy(s_wakeup_word, (char*)frame->data, frame->len);
+        break;
+    
     default:
         break;
     }
+}
+
+char *vb6824_get_wakeup_word(){
+    return s_wakeup_word;
 }
 
 void vb6824_audio_enable_input(bool enable){
@@ -376,6 +493,11 @@ void vb6824_register_voice_command_cb(vb_voice_command_cb_t cb, void *arg){
     g_voice_command_cb_arg = arg;
 }
 
+void vb6824_register_event_cb(vb_voice_event_cb_t cb, void *arg){
+    g_voice_event_cb_arg = arg;
+    g_voice_event_cb = cb;
+}
+
 void vb6824_audio_set_output_volume(uint8_t volume){
     uint8_t vol = (uint8_t)((int)(volume * 31) / 100);
     __frame_send(VB6824_CMD_SEND_VOLUM, &vol, 1);
@@ -414,6 +536,78 @@ uint16_t vb6824_audio_read(uint8_t *data, uint16_t size){
     return item_size;
 }
 
+#if defined(CONFIG_VB6824_OTA_SUPPORT) && CONFIG_VB6824_OTA_SUPPORT == 1
+
+static void __start_ota_timer_cb(void* arg){
+    if (s_mode != VB6824_MODE_OTA)
+    {
+        uint8_t ota_data = 0x01;
+        __frame_send(VB6824_CMD_SEND_OTA, &ota_data, 1);
+        esp_timer_start_once(start_ota_timer, 500000);
+    }
+}
+
+int vb6824_ota(const char* code, jl_ota_event_t evt_cb){
+    ESP_LOGW(TAG, "vb6824_ota:%s",  code);
+    s_ota_evt = evt_cb;    
+    jl_ota_set_code(code);
+    if (s_wait_fresh_wakeup_word)
+    {
+        if (g_voice_event_cb)
+        {
+            g_voice_event_cb(VB6824_EVT_OTA_START, 0, g_voice_event_cb_arg);
+        }
+        
+        jl_ota_start(vb_ota_evt_cb);
+        s_mode = VB6824_MODE_OTA;
+        return 1;
+    }
+    s_wait_fresh_wakeup_word = 1;
+    uint8_t ota_data = 0x01;
+    __frame_send(VB6824_CMD_SEND_OTA, &ota_data, 1);
+    if (start_ota_timer ==  NULL)
+    {    
+        esp_timer_create_args_t timer_args = {
+            .callback = __start_ota_timer_cb,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "start_ota",
+            .skip_unhandled_events = true,
+        };
+        esp_timer_create(&timer_args, &start_ota_timer);
+    }
+
+    if(start_ota_timer){
+        esp_timer_start_once(start_ota_timer, 500000);
+    }else{
+        ESP_LOGE(TAG, "send_timer is null");
+        return 0;
+    }
+    
+    return 1;
+}
+
+
+void __check_vb_timer_cb(void *arg){
+    static uint8_t times = 0;
+    if (s_wait_fresh_wakeup_word)
+    {
+        if (times>=20)
+        {
+
+            if(s_wait_vb_hello && g_voice_event_cb){
+                g_voice_event_cb(VB6824_EVT_OTA_ENTER, 1, g_voice_event_cb_arg);
+            }
+            return;
+        }
+        times++;
+        uint8_t test = 1;
+        __frame_send(VB6824_CMD_SEND_GET_WAKEUP_WORD, &test, 1);
+        esp_timer_start_once(check_wakeword, 200*1000);
+    }
+    
+}
+#endif
+
 void vb6824_init(gpio_num_t tx, gpio_num_t rx){
     __uart_init(tx, rx);
 
@@ -428,6 +622,22 @@ void vb6824_init(gpio_num_t tx, gpio_num_t rx){
     g_tx_ringbuffer = xRingbufferCreate(SEND_BUF_LENGTH, RINGBUF_TYPE_BYTEBUF);
 #endif
 
+#if defined(CONFIG_VB6824_OTA_SUPPORT) && CONFIG_VB6824_OTA_SUPPORT == 1
+    uint8_t test = 1;
+    __frame_send(VB6824_CMD_SEND_GET_WAKEUP_WORD, &test, 1);
+    esp_timer_create_args_t check_timer_args = {
+        .callback = __check_vb_timer_cb,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "vb_check",
+        .skip_unhandled_events = true,
+    };
+    esp_timer_create(&check_timer_args, &check_wakeword);
+    if(check_wakeword){
+        esp_timer_start_once(check_wakeword, 200*1000);
+    }else{
+        ESP_LOGE(TAG, "send_timer is null");
+    }
+#endif
 #ifdef CONFIG_VB6824_SEND_USE_TASK
     xTaskCreate(__send_task, "__send_task", CONFIG_VB6824_SEND_TASK_STACK_SIZE, NULL, 9, NULL);
 #else
