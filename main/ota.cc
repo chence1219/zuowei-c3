@@ -79,6 +79,11 @@ bool Ota::CheckVersion() {
     current_version_ = app_desc->version;
     ESP_LOGI(TAG, "Current version: %s", current_version_.c_str());
 
+    if (check_version_url_.length() == 0) {
+        ESP_LOGE(TAG, "Check version URL is not null");
+        return true;
+    }
+
     if (check_version_url_.length() < 10) {
         ESP_LOGE(TAG, "Check version URL is not properly set");
         return false;
