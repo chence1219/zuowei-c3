@@ -15,7 +15,7 @@
 
 static const char *TAG = "vb6824";
 
-#define UART_NUM                UART_NUM_1
+#define UART_NUM                    CONFIG_VB6824_UART_PORT
 
 #if defined(CONFIG_VB6824_TYPE_OPUS_16K_20MS)
 #define AUDIO_RECV_CHENK_LEN     40
