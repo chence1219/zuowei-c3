@@ -19,6 +19,26 @@ config CUSTOM_OTA_VERSION_URL
     help
         The application will access this URL to check for updates.
 
+config CONNECTION_FORCE_FIXED_WEBSOCKET
+    bool "Force Fixed Websocket"
+    default n
+    help
+        Force Fixed Websocket
+
+config WEBSOCKET_URL
+    depends on CONNECTION_FORCE_FIXED_WEBSOCKET
+    string "Websocket URL"
+    default "wss://api.tenclass.net/xiaozhi/v1/"
+    help
+        Communication with the server through websocket after wake up.
+
+config WEBSOCKET_ACCESS_TOKEN
+    depends on CONNECTION_FORCE_FIXED_WEBSOCKET
+    string "Websocket Access Token"
+    default "test-token"
+    help
+        Access token for websocket communication.
+
 choice
     prompt "语言选择"
     default LANGUAGE_ZH_CN

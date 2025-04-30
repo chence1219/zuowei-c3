@@ -513,6 +513,9 @@ void Application::Start() {
     // Initialize the protocol
     display->SetStatus(Lang::Strings::LOADING_PROTOCOL);
 
+#ifdef CONFIG_CONNECTION_FORCE_FIXED_WEBSOCKET
+    protocol_ = std::make_unique<WebsocketProtocol>();
+#else
     if (ota_.HasMqttConfig()) {
         protocol_ = std::make_unique<MqttProtocol>();
     } else if (ota_.HasWebsocketConfig()) {
@@ -521,6 +524,7 @@ void Application::Start() {
         ESP_LOGW(TAG, "No protocol specified in the OTA config, using MQTT");
         protocol_ = std::make_unique<MqttProtocol>();
     }
+#endif
 
     protocol_->OnNetworkError([this](const std::string& message) {
         SetDeviceState(kDeviceStateIdle);

@@ -68,10 +68,14 @@ bool WebsocketProtocol::OpenAudioChannel() {
         delete websocket_;
     }
 
+#ifdef CONFIG_CONNECTION_FORCE_FIXED_WEBSOCKET
+    std::string url = CONFIG_WEBSOCKET_URL;
+    std::string token = CONFIG_WEBSOCKET_ACCESS_TOKEN;
+#else
     Settings settings("websocket", false);
     std::string url = settings.GetString("url");
     std::string token = settings.GetString("token");
-
+#endif
     busy_sending_audio_ = false;
     error_occurred_ = false;
     
