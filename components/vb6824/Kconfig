@@ -13,6 +13,11 @@ menu "VB6824"
     config VB6824_OTA_SUPPORT
         bool "6824支持升级"
         default n
+        select HTTPD_WS_SUPPORT
+    
+    config VB6824_UART_PORT
+        int "uart port"
+        default 1
 
     config VB6824_UART_TASK_STACK_SIZE
         int "uart task stack size"
