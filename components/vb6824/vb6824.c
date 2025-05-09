@@ -608,6 +608,18 @@ void __check_vb_timer_cb(void *arg){
 }
 #endif
 
+bool vb6824_is_support_ota(){
+#if defined(CONFIG_VB6824_OTA_SUPPORT) && CONFIG_VB6824_OTA_SUPPORT == 1
+    if (s_wait_vb_hello==0 && s_wait_fresh_wakeup_word==1)
+    {
+        return false;
+    }
+    return true;
+#else
+    return false;
+#endif
+}
+
 void vb6824_init(gpio_num_t tx, gpio_num_t rx){
     __uart_init(tx, rx);
 

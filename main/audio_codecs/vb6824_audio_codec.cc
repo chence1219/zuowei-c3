@@ -12,6 +12,13 @@
 
 #include "esp_log.h"
 
+#include "application.h"
+#include "system_info.h"
+#include "wifi_station.h"
+#include "mbedtls/md5.h"
+#include <iomanip>
+#include <sstream>
+
 #include "vb6824.h"
 
 static const char *TAG = "VbAduioCodec";
@@ -29,17 +36,100 @@ void VbAduioCodec::OnWakeUp(std::function<void(std::string)> callback) {
     on_wake_up_ = callback;
 }
 
+void VbAduioCodec::OtaEvent(vb6824_evt_t event_id, uint32_t data) {
 #if defined(CONFIG_VB6824_OTA_SUPPORT) && CONFIG_VB6824_OTA_SUPPORT == 1
-void VbAduioCodec::Event(vb6824_evt_t event_id, uint32_t data) {
-    if (on_vb_evt_) {
-        on_vb_evt_(event_id, data);
+    ESP_LOGW(TAG, "event_id: %d %ld", event_id, data);
+    if (event_id == VB6824_EVT_OTA_ENTER) {
+        if (data == 0 && esp_timer_get_time() > 20 * 1000 * 1000)
+        {
+            return; 
+        }
+        OtaStart();
+    }else if (event_id == VB6824_EVT_OTA_START) {
+        ESP_LOGI(TAG, "OTA START");
+        auto& app = Application::GetInstance();
+        app.ReleaseDecoder();
     }
+#else
+    ESP_LOGW(TAG, "not support ota event");
+#endif
 }
 
-void VbAduioCodec::OnEvent(std::function<void(vb6824_evt_t,uint32_t)> callback) {
-    on_vb_evt_ = callback;
+std::string VbAduioCodec::GenDevCode() {
+
+    auto mac = SystemInfo::GetMacAddress();
+    std::string last_four_digits;
+    if (!mac.empty()) {
+        unsigned char md5_result[16]; // MD5 produces a 16-byte hash
+        mbedtls_md5(reinterpret_cast<const unsigned char*>(mac.c_str()), mac.size(), md5_result);
+
+        std::ostringstream oss;
+        for (int i = 0; i < 16; ++i) {
+            oss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(md5_result[i]);
+        }
+        std::string md5_str = oss.str();
+        if (md5_str.size() >= 4) {
+            last_four_digits = md5_str.substr(md5_str.size() - 4);
+        }
+    }
+    if (last_four_digits.empty()) {
+        last_four_digits = "0000"; // 如果无法生成，返回默认值
+    }
+    
+    return last_four_digits;
 }
+
+int VbAduioCodec::OtaStart(uint8_t mode) {
+#if defined(CONFIG_VB6824_OTA_SUPPORT) && CONFIG_VB6824_OTA_SUPPORT == 1
+    if (vb6824_is_support_ota()==false) {
+        ESP_LOGE(TAG, "ota not support");
+        return OTA_ERR_NOT_SUPPORT;
+    }
+
+    auto& app = Application::GetInstance();
+    auto& wifi_station = WifiStation::GetInstance();
+    const std::string ip = wifi_station.GetIpAddress();
+    std::string code = GenDevCode();
+    if(!wifi_station.IsConnected() || app.GetDeviceState() == kDeviceStateActivating) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        app.Schedule([this]() {
+            this->OtaStart(1);
+        });
+        return OTA_OK;
+    }
+
+    if (jl_ws_is_start() == 1)
+    {
+        app.ShowOtaInfo(code, ip);
+        return OTA_ERR_IN_OTA_MODE;
+    }
+    
+    ESP_LOGI(TAG, "升级模式");
+    SetOutputVolume(100);
+    app.ShowOtaInfo(code, ip);
+    jl_ws_start((char*)code.c_str());
+    return OTA_OK;
+#else
+    return OTA_ERR_NOT_SUPPORT;
 #endif
+}
+
+bool VbAduioCodec::InOtaMode(bool reShowIfInOta) {
+#if defined(CONFIG_VB6824_OTA_SUPPORT) && CONFIG_VB6824_OTA_SUPPORT == 1
+    auto &app = Application::GetInstance();
+    std::string code = GenDevCode();
+    const std::string ip = WifiStation::GetInstance().GetIpAddress();
+    if (jl_ws_is_start() == 1) {
+        if (reShowIfInOta)
+        {
+            app.ShowOtaInfo(code, ip);
+        }
+        return true;
+    }
+#endif
+    return false;
+}
+
 
 VbAduioCodec::VbAduioCodec(gpio_num_t tx, gpio_num_t rx) {
 
@@ -56,7 +146,7 @@ VbAduioCodec::VbAduioCodec(gpio_num_t tx, gpio_num_t rx) {
 #if defined(CONFIG_VB6824_OTA_SUPPORT) && CONFIG_VB6824_OTA_SUPPORT == 1
     vb6824_register_event_cb([](vb6824_evt_t event_id, uint32_t data, void *arg){
         auto this_ = (VbAduioCodec*)arg;
-        this_->Event(event_id, data);
+        this_->OtaEvent(event_id, data);
     }, this);
 #endif
 
