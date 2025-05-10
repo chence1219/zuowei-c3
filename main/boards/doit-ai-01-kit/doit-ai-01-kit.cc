@@ -45,6 +45,16 @@ private:
                 ResetWifiConfiguration();
             }
         });
+        boot_button_.OnLongPress([this]() {
+            if (esp_timer_get_time() > 20 * 1000 * 1000) {
+                ESP_LOGI(TAG, "Long press, do not enter OTA mode %ld", (uint32_t)esp_timer_get_time());
+                return;
+            }
+           int ret = audio_codec.OtaStart(0); 
+            if(ret == VbAduioCodec::OTA_ERR_NOT_SUPPORT){
+                ESP_LOGW(TAG, "Please enable VB6824_OTA_SUPPORT");
+            }
+        });
     }
 
     // 物联网初始化，添加对 AI 可见设备
