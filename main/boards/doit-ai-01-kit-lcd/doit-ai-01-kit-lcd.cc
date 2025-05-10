@@ -20,6 +20,7 @@
 #include <ssid_manager.h>
 #include "assets/lang_config.h"
 
+
 #define TAG "CustomBoard"
 
 LV_FONT_DECLARE(font_puhui_14_1);
@@ -30,19 +31,28 @@ private:
     Button boot_button_;
     VbAduioCodec audio_codec;
     LcdDisplay* display;
-
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
+            if (audio_codec.InOtaMode(1) == true) {
+                ESP_LOGI(TAG, "OTA mode, do not enter chat");
+                return;
+            }
             auto &app = Application::GetInstance();
             app.ToggleChatState();
         });
         boot_button_.OnPressRepeat([this](uint16_t count) {
-            if(count >= 3){
+            if(count >= 3 && audio_codec.InOtaMode(1) == false){
                 ResetWifiConfiguration();
             }
         });
+        boot_button_.OnLongPress([this]() {
+            if (esp_timer_get_time() > 20 * 1000 * 1000) {
+                ESP_LOGI(TAG, "Long press, do not enter OTA mode %ld", (uint32_t)esp_timer_get_time());
+                return;
+            }
+            audio_codec.OtaStart(0);
+        });
     }
-
     // 物联网初始化，添加对 AI 可见设备
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
@@ -111,7 +121,7 @@ public:
         InitializeLcdDisplay();
         GetBacklight()->RestoreBrightness();
         audio_codec.OnWakeUp([this](const std::string& command) {
-            if (command == "你好小智"){
+            if (command == std::string(vb6824_get_wakeup_word())){
                 if(Application::GetInstance().GetDeviceState() != kDeviceStateListening){
                     Application::GetInstance().WakeWordInvoke("你好小智");
                 }
@@ -119,6 +129,7 @@ public:
                 ResetWifiConfiguration();
             }
         });
+    
     }
 
     virtual AudioCodec* GetAudioCodec() override {

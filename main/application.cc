@@ -1220,7 +1220,7 @@ void Application::ReleaseDecoder() {
 }
 
 
-void Application::ShowOtaInfo(const std::string& code) {
+void Application::ShowOtaInfo(const std::string& code,const std::string& ip) {
     Schedule([this]() {
         if(device_state_ != kDeviceStateActivating && device_state_ != kDeviceStateIdle && protocol_ != nullptr) {
             protocol_->CloseAudioChannel();
@@ -1229,8 +1229,8 @@ void Application::ShowOtaInfo(const std::string& code) {
     vTaskDelay(pdMS_TO_TICKS(600));
     if (device_state_ != kDeviceStateIdle) {
         ESP_LOGW(TAG, "ShowOtaInfo, device_state_:%s != kDeviceStateIdle", STATE_STRINGS[device_state_]);
-        background_task_->Schedule([this, code](){
-            this->ShowOtaInfo(code);
+        background_task_->Schedule([this, code, ip](){
+            this->ShowOtaInfo(code, ip);
         });
         return;
     }
@@ -1241,14 +1241,14 @@ void Application::ShowOtaInfo(const std::string& code) {
             
         });
         vTaskDelay(pdMS_TO_TICKS(100));
-        background_task_->Schedule([this, code](){
-            this->ShowOtaInfo(code);
+        background_task_->Schedule([this, code, ip](){
+            this->ShowOtaInfo(code, ip);
         });
         return;
     }
     
     ResetDecoder();
-    ESP_LOGW(TAG,"DEV CODE:%s", code.c_str());
+    ESP_LOGW(TAG,"DEV CODE:%s ip:%s", code.c_str(), ip.c_str());
     struct digit_sound {
         char digit;
         const std::string_view& sound;
@@ -1266,10 +1266,17 @@ void Application::ShowOtaInfo(const std::string& code) {
         digit_sound{'9', Lang::Sounds::P3_9}
     }};
 
-    Schedule([this,code](){
+    Schedule([this,code,ip](){
         auto display = Board::GetInstance().GetDisplay();
+        std::string message;
+        if (ip.empty()) {
+            message = "浏览器访问\nhttp://vbota.esp32.cn/vbota\n设备码:"+code;
+        } else {
+            message = "浏览器访问\nhttp://vbota.esp32.cn/vbota\n或\nhttp://"+ip+"\n设备码:"+code;
+        }
+        
         display->SetStatus("升级模式");
-        display->SetChatMessage("system", std::string("浏览器访问http://vbota.esp32.cn/vbota,设备码:"+code).c_str());
+        display->SetChatMessage("system", message.c_str());
         PlaySound(Lang::Sounds::P3_START_OTA);
         for (const auto& digit : code) {
             auto it = std::find_if(digit_sounds.begin(), digit_sounds.end(),
