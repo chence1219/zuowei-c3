@@ -62,15 +62,11 @@ std::string VbAduioCodec::GenDevCode() {
     if (!mac.empty()) {
         unsigned char md5_result[16]; // MD5 produces a 16-byte hash
         mbedtls_md5(reinterpret_cast<const unsigned char*>(mac.c_str()), mac.size(), md5_result);
-
+        uint16_t value =  (((md5_result[14]) << 8) | md5_result[15]) & 0xFFFF; 
         std::ostringstream oss;
-        for (int i = 0; i < 16; ++i) {
-            oss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(md5_result[i]);
-        }
-        std::string md5_str = oss.str();
-        if (md5_str.size() >= 4) {
-            last_four_digits = md5_str.substr(md5_str.size() - 4);
-        }
+        oss << value % 10000;
+        last_four_digits = oss.str();
+        ESP_LOGW(TAG, "last_four_digits: %s", last_four_digits.c_str());
     }
     if (last_four_digits.empty()) {
         last_four_digits = "0000"; // 如果无法生成，返回默认值
