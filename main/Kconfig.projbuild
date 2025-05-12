@@ -101,11 +101,17 @@ config USE_AUDIO_PROCESSOR
     help
         需要 ESP32 S3 与 AFE 支持
 
-config USE_REALTIME_CHAT
-    bool "启用可语音打断的实时对话模式（需要 AEC 支持）"
+config USE_DEVICE_AEC
+    bool "在通话过程中启用设备端 AEC"
     default n
     help
-        需要 ESP32 S3 与 AEC 开启，因为性能不够，不建议和微信聊天界面风格同时开启
+        因为性能不够，不建议和微信聊天界面风格同时开启
+
+config USE_SERVER_AEC
+    bool "在通话过程中启用服务器端 AEC"
+    default n
+    help
+        启用服务器端 AEC，需要服务器支持
 
 config USE_AUDIO_CODEC_ENCODE_OPUS
     bool "use audio codec encode opus"
@@ -126,4 +132,5 @@ config AUDIO_LOOP_TASK_STACK_SIZE
     int "audio_loop task stack size"
     default 2048 if IDF_TARGET_ESP32C2
     default 8192
+
 endmenu
