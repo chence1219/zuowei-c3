@@ -152,6 +152,8 @@ choice BOARD_TYPE
         bool "Doit-AI-01-Kit"
     config BOARD_TYPE_DOIT_AI_01_KIT_LCD
         bool "Doit-AI-01-Kit-lcd"
+    config BOARD_TYPE_DOIT_AI_SPEAKER
+        bool "Doit-AI-SPEAKER"
 endchoice
 
 choice ESP_S3_LCD_EV_Board_Version_TYPE

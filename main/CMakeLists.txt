@@ -159,6 +159,8 @@ elseif(CONFIG_BOARD_TYPE_DOIT_AI_01_KIT)
     set(BOARD_TYPE "doit-ai-01-kit")
 elseif(CONFIG_BOARD_TYPE_DOIT_AI_01_KIT_LCD)
     set(BOARD_TYPE "doit-ai-01-kit-lcd")
+elseif(CONFIG_BOARD_TYPE_DOIT_AI_SPEAKER)
+    set(BOARD_TYPE "doit-ai-speaker")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
