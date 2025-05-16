@@ -103,11 +103,11 @@ bool WebsocketProtocol::OpenAudioChannel() {
     Settings settings("websocket", false);
     std::string url = settings.GetString("url");
     std::string token = settings.GetString("token");
-#endif
     int version = settings.GetInt("version");
     if (version != 0) {
         version_ = version;
     }
+#endif
 
     busy_sending_audio_ = false;
     error_occurred_ = false;
