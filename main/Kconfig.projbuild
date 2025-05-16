@@ -67,6 +67,12 @@ config ASSETS_PATH
     help
         Assets Path
 
+config ASSETS_FIX_PATH
+    string "Assets Fix Path"
+    default ""
+    help
+        Assets Fix Path
+
 config USE_WECHAT_MESSAGE_STYLE
     bool "使用微信聊天界面风格"
     default n

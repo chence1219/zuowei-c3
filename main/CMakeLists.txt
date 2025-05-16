@@ -76,6 +76,39 @@ set(LANG_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_ASSETS_PATH}/lang_config.h
 file(GLOB LANG_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_ASSETS_PATH}/${LANG_DIR}/*.p3)
 file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_ASSETS_PATH}/common/*.p3)
 
+if(NOT CONFIG_ASSETS_FIX_PATH STREQUAL "")
+    set(FIX_LANG_JSON "${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_ASSETS_FIX_PATH}/${LANG_DIR}/language.json")
+    file(GLOB FIX_LANG_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_ASSETS_FIX_PATH}/${LANG_DIR}/*.p3)
+    file(GLOB FIX_COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_ASSETS_FIX_PATH}/common/*.p3)
+
+    foreach(fix_sound ${FIX_LANG_SOUNDS})
+        get_filename_component(fix_sound_name ${fix_sound} NAME)
+        foreach(sound ${LANG_SOUNDS})
+            get_filename_component(sound_name ${sound} NAME)
+            if(fix_sound_name STREQUAL sound_name)
+                list(REMOVE_ITEM LANG_SOUNDS ${sound})
+                break()
+            endif()
+        endforeach()
+    endforeach()
+
+    foreach(fix_sound ${FIX_COMMON_SOUNDS})
+        get_filename_component(fix_sound_name ${fix_sound} NAME)
+        foreach(sound ${COMMON_SOUNDS})
+            get_filename_component(sound_name ${sound} NAME)
+            if(fix_sound_name STREQUAL sound_name)
+                list(REMOVE_ITEM COMMON_SOUNDS ${sound})
+                break() 
+            endif()
+        endforeach()
+    endforeach()
+
+    list(APPEND LANG_SOUNDS ${FIX_LANG_SOUNDS})
+    list(APPEND COMMON_SOUNDS ${FIX_COMMON_SOUNDS})
+
+    list(APPEND INCLUDE_DIRS ${CONFIG_ASSETS_FIX_PATH}/..)
+endif()
+
 list(APPEND SOURCES "audio_codecs/vb6824_audio_codec.cc")
 if(CONFIG_USE_AUDIO_CODEC_ENCODE_OPUS OR CONFIG_USE_AUDIO_CODEC_DECODE_OPUS)
 list(REMOVE_ITEM SOURCES "audio_codecs/box_audio_codec.cc"
@@ -101,6 +134,19 @@ target_compile_definitions(${COMPONENT_LIB}
                     PRIVATE BOARD_TYPE=\"${BOARD_TYPE}\" BOARD_NAME=\"${BOARD_NAME}\"
                     )
 
+if(NOT CONFIG_ASSETS_FIX_PATH STREQUAL "")
+add_custom_command(
+    OUTPUT ${LANG_HEADER}
+    COMMAND python ${PROJECT_DIR}/scripts/gen_lang_fix.py
+            --input "${LANG_JSON}"
+            --input_fix "${FIX_LANG_JSON}"
+            --output "${LANG_HEADER}"
+    DEPENDS
+        ${LANG_JSON}
+        ${PROJECT_DIR}/scripts/gen_lang_fix.py
+    COMMENT "Generating ${LANG_DIR} language config"
+)
+else()
 # 添加生成规则
 add_custom_command(
     OUTPUT ${LANG_HEADER}
@@ -112,6 +158,7 @@ add_custom_command(
         ${PROJECT_DIR}/scripts/gen_lang.py
     COMMENT "Generating ${LANG_DIR} language config"
 )
+endif()
 
 # 强制建立生成依赖
 add_custom_target(lang_header ALL
