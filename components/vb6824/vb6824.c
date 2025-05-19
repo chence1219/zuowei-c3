@@ -312,7 +312,7 @@ clear_rbuffer:
                         uint8_t *item = (uint8_t *)xRingbufferReceiveUpTo(g_tx_ringbuffer, &item_size, 0, AUDIO_SEND_CHENK_LEN);
             #endif
                         if (item != NULL) {
-                            vRingbufferReturnItem(g_rx_ringbuffer, (void *)item);
+                            vRingbufferReturnItem(g_tx_ringbuffer, (void *)item);
                         }else{
                             break;
                         }
@@ -501,7 +501,7 @@ void vb6824_audio_enable_output(bool enable){
 //             uint8_t *item = (uint8_t *)xRingbufferReceiveUpTo(g_tx_ringbuffer, &item_size, 0, AUDIO_SEND_CHENK_LEN);
 // #endif
 //             if (item != NULL) {
-//                 vRingbufferReturnItem(g_rx_ringbuffer, (void *)item);
+//                 vRingbufferReturnItem(g_tx_ringbuffer, (void *)item);
 //             }else{
 //                 break;
 //             }
