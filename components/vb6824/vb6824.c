@@ -92,13 +92,11 @@ static RingbufHandle_t g_rx_ringbuffer = NULL;
 static RingbufHandle_t g_tx_ringbuffer = NULL;
 static vb6824_mode_t s_mode = VB6824_MODE_AUDIO;
 
-static esp_timer_handle_t start_ota_timer = NULL;
-static esp_timer_handle_t check_wakeword = NULL;
-
-
 #if defined(CONFIG_VB6824_OTA_SUPPORT) && CONFIG_VB6824_OTA_SUPPORT == 1
 #include "vb_ota.h"
 static jl_ota_event_t s_ota_evt = NULL;
+static esp_timer_handle_t start_ota_timer = NULL;
+static esp_timer_handle_t check_wakeword = NULL;
 #endif
 static uint8_t s_wait_fresh_wakeup_word = 1;
 static uint8_t s_wait_vb_hello = 1;
@@ -659,9 +657,9 @@ void vb6824_init(gpio_num_t tx, gpio_num_t rx){
     g_tx_ringbuffer = xRingbufferCreate(SEND_BUF_LENGTH, RINGBUF_TYPE_BYTEBUF);
 #endif
 
-#if defined(CONFIG_VB6824_OTA_SUPPORT) && CONFIG_VB6824_OTA_SUPPORT == 1
     uint8_t test = 1;
     __frame_send(VB6824_CMD_SEND_GET_WAKEUP_WORD, &test, 1);
+#if defined(CONFIG_VB6824_OTA_SUPPORT) && CONFIG_VB6824_OTA_SUPPORT == 1
     esp_timer_create_args_t check_timer_args = {
         .callback = __check_vb_timer_cb,
         .dispatch_method = ESP_TIMER_TASK,
