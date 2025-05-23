@@ -351,7 +351,11 @@ void Application::DismissAlert() {
     }
 }
 
-void Application::PlaySound(const std::string_view& sound) {
+void Application::PlaySound(const std::string_view& sound, bool reset_decoder) {
+    if(reset_decoder){
+        ResetDecoder();
+    }
+    
     // Wait for the previous sound to finish
     {
         std::unique_lock<std::mutex> lock(mutex_);
@@ -360,6 +364,8 @@ void Application::PlaySound(const std::string_view& sound) {
         });
     }
     background_task_->WaitForCompletion();
+
+    curr_play_sound_ = &sound;
 
     // The assets are encoded at 16000Hz, 60ms frame duration
     SetDecodeSampleRate(16000, 60);
@@ -387,6 +393,13 @@ void Application::PlaySound(const std::string_view& sound) {
         memcpy(packet.payload.data(), p3->payload, payload_size);
         p += payload_size;
 
+        std::lock_guard<std::mutex> lock(mutex_);
+        audio_decode_queue_.emplace_back(std::move(packet));
+    }
+
+    {
+        AudioStreamPacket packet;
+        packet.timestamp = 0xFFFFFFFE;
         std::lock_guard<std::mutex> lock(mutex_);
         audio_decode_queue_.emplace_back(std::move(packet));
     }
@@ -852,6 +865,7 @@ void Application::OnAudioOutput() {
 
     std::unique_lock<std::mutex> lock(mutex_);
     if (audio_decode_queue_.empty()) {
+        curr_play_sound_ = nullptr;
         // Disable the output if there is no audio data for a long time
         if (device_state_ == kDeviceStateIdle) {
             auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - last_output_time_).count();
@@ -862,7 +876,7 @@ void Application::OnAudioOutput() {
         return;
     }
 
-    if (device_state_ == kDeviceStateListening) {
+    if (device_state_ == kDeviceStateListening && curr_play_sound_ == nullptr) {
         audio_decode_queue_.clear();
         audio_decode_cv_.notify_all();
         return;
@@ -873,6 +887,10 @@ void Application::OnAudioOutput() {
     lock.unlock();
     audio_decode_cv_.notify_all();
 
+    if(packet.timestamp == 0xFFFFFFFE){
+        curr_play_sound_ = NULL;
+    }
+
     int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
     if(free_sram < 10000){
         return;
@@ -881,7 +899,7 @@ void Application::OnAudioOutput() {
     busy_decoding_audio_ = true;
     background_task_->Schedule([this, codec, packet = std::move(packet)]() mutable {
         busy_decoding_audio_ = false;
-        if (aborted_) {
+        if (aborted_ && curr_play_sound_ == nullptr) {
             return;
         }
 #ifdef CONFIG_USE_AUDIO_CODEC_DECODE_OPUS
@@ -910,7 +928,7 @@ void Application::OnAudioInput() {
         }
     }
 #endif
-    if (audio_processor_->IsRunning()) {
+    if (audio_processor_->IsRunning() && curr_play_sound_ == nullptr) {
 #ifdef CONFIG_USE_AUDIO_CODEC_ENCODE_OPUS
         int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
         if(free_sram < 10000){
@@ -1139,6 +1157,29 @@ void Application::UpdateIotStates() {
 void Application::Reboot() {
     ESP_LOGI(TAG, "Rebooting...");
     esp_restart();
+}
+
+void Application::PlayHere(void) {
+    aborted_ = true;
+    Schedule([this]() {
+        aborted_ = true;
+        ResetDecoder();
+        PlaySound(Lang::Sounds::P3_HERE);
+    });
+}
+
+void Application::StartListeningAndPlayHere(void) {
+    if (device_state_ == kDeviceStateIdle) {
+        ToggleChatState();
+        PlayHere();
+    } else if (device_state_ == kDeviceStateSpeaking) {
+        PlayHere();
+        Schedule([this]() {
+            AbortSpeaking(kAbortReasonNone);
+        });
+    } else if (device_state_ == kDeviceStateListening) {   
+        PlayHere();
+    }
 }
 
 void Application::WakeWordInvoke(const std::string& wake_word) {

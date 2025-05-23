@@ -72,7 +72,7 @@ public:
     void UpdateIotStates();
     void Reboot();
     void WakeWordInvoke(const std::string& wake_word);
-    void PlaySound(const std::string_view& sound);
+    void PlaySound(const std::string_view& sound, bool reset_decoder = false);
     bool CanEnterSleepMode();
 
 #ifdef CONFIG_USE_CUSTOM_OTA
@@ -90,6 +90,8 @@ public:
     void SetRealtimeChatEnable(bool enable) { realtime_chat_enabled_ = enable; }
     bool GetRealtimeChatEnable(void) { return realtime_chat_enabled_; }
 #endif
+
+    void StartListeningAndPlayHere(void);
 
 private:
     Application();
@@ -115,6 +117,7 @@ private:
 #else
     bool realtime_chat_enabled_ = false;
 #endif
+    bool play_here_ = false;
     bool aborted_ = false;
     bool voice_detected_ = false;
     bool busy_decoding_audio_ = false;
@@ -140,6 +143,8 @@ private:
     bool custom_ota_task_is_start = false;
 #endif
 
+    const std::string_view *curr_play_sound_ = nullptr;
+
     void MainEventLoop();
     void OnAudioInput();
     void OnAudioOutput();
@@ -161,6 +166,8 @@ private:
     void OnClockTimer();
     void SetListeningMode(ListeningMode mode);
     void AudioLoop();
+
+    void PlayHere(void);
 };
 
 #endif // _APPLICATION_H_
