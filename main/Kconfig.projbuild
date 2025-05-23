@@ -122,6 +122,10 @@ config USE_SERVER_AEC
 config WIFI_CONFIG_MODE_SSID_PREFIX
     string "wifi config mode ssid prefix"
     default "xiaozhi"
+
+config WIFI_CONFIG_MODE_FORMAT_DISPLAY
+    bool "wifi config mode format display"
+    default n
     
 config USE_AUDIO_CODEC_ENCODE_OPUS
     bool "use audio codec encode opus"

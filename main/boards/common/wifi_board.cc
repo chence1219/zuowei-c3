@@ -45,13 +45,24 @@ void WifiBoard::EnterWifiConfigMode() {
     wifi_ap.SetSsidPrefix(CONFIG_WIFI_CONFIG_MODE_SSID_PREFIX);
     wifi_ap.Start();
 
+#ifdef CONFIG_WIFI_CONFIG_MODE_FORMAT_DISPLAY
     // 显示 WiFi 配置 AP 的 SSID 和 Web 服务器 URL
+    std::string hint = Lang::Strings::CONNECT_TO_HOTSPOT;
+    hint += "\n";
+    hint += wifi_ap.GetSsid();
+    hint += "\n";
+    hint += Lang::Strings::ACCESS_VIA_BROWSER + 1;
+    hint += "\n";
+    hint += wifi_ap.GetWebServerUrl();
+    hint += "\n\n";
+#else
     std::string hint = Lang::Strings::CONNECT_TO_HOTSPOT;
     hint += wifi_ap.GetSsid();
     hint += Lang::Strings::ACCESS_VIA_BROWSER;
     hint += wifi_ap.GetWebServerUrl();
     hint += "\n\n";
-    
+#endif
+
     // 播报配置 WiFi 的提示
     application.Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "", Lang::Sounds::P3_WIFICONFIG);
     
