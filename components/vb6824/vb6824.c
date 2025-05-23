@@ -95,6 +95,7 @@ static vb6824_mode_t s_mode = VB6824_MODE_AUDIO;
 static esp_timer_handle_t start_ota_timer = NULL;
 static esp_timer_handle_t check_wakeword = NULL;
 
+static SemaphoreHandle_t g_rx_mux = NULL;
 
 #if defined(CONFIG_VB6824_OTA_SUPPORT) && CONFIG_VB6824_OTA_SUPPORT == 1
 #include "vb_ota.h"
@@ -396,6 +397,7 @@ void __vb6824_frame_cb(uint8_t *data, uint16_t len){
             s_wait_vb_hello = 0;
         }
         if(g_input_enabled){
+            xSemaphoreTake(g_rx_mux, portMAX_DELAY);
             while(xRingbufferGetCurFreeSize(g_rx_ringbuffer) < frame->len){
                 size_t item_size = 0;
 #if (defined(CONFIG_VB6824_TYPE_OPUS_16K_20MS) || defined(CONFIG_VB6824_TYPE_OPUS_16K_20MS_PCM_16K))
@@ -409,6 +411,7 @@ void __vb6824_frame_cb(uint8_t *data, uint16_t len){
                     break;
                 }
             }
+            xSemaphoreGive(g_rx_mux);
             xRingbufferSend(g_rx_ringbuffer, (void *)frame->data, frame->len, portMAX_DELAY);
         }
         break;
@@ -534,7 +537,9 @@ uint16_t vb6824_audio_read(uint8_t *data, uint16_t size){
     vRingbufferGetInfo(g_rx_ringbuffer, NULL, NULL, NULL, NULL, &items_waiting);
 #if (defined(CONFIG_VB6824_TYPE_OPUS_16K_20MS) || defined(CONFIG_VB6824_TYPE_OPUS_16K_20MS_PCM_16K))
     // if(items_waiting > 0){
-        char *item = (char *)xRingbufferReceive(g_rx_ringbuffer, &item_size, portMAX_DELAY);
+    while (1) {
+        xSemaphoreTake(g_rx_mux, portMAX_DELAY);
+        char *item = (char *)xRingbufferReceive(g_rx_ringbuffer, &item_size, pdMS_TO_TICKS(10));
         if (item != NULL) {
             if(size >= item_size){
                 memcpy(data, item, item_size);
@@ -543,15 +548,25 @@ uint16_t vb6824_audio_read(uint8_t *data, uint16_t size){
                 item_size = 0;
             }
             vRingbufferReturnItem(g_rx_ringbuffer, (void *)item);
+            xSemaphoreGive(g_rx_mux);
+            break;
         }
+        xSemaphoreGive(g_rx_mux);
+    }
     // }
 #else
     // if(items_waiting > size){
-        char *item = (uint8_t *)xRingbufferReceiveUpTo(g_rx_ringbuffer, &item_size, portMAX_DELAY, size);
+    while (1) {
+        xSemaphoreTake(g_rx_mux, portMAX_DELAY);
+        char *item = (uint8_t *)xRingbufferReceiveUpTo(g_rx_ringbuffer, &item_size, pdMS_TO_TICKS(10), size);
         if(item_size > 0){
             memcpy(data, item, item_size);
             vRingbufferReturnItem(g_rx_ringbuffer, (void *)item);
+            xSemaphoreGive(g_rx_mux);
+            break;
         }
+        xSemaphoreGive(g_rx_mux);
+    }
     // }
 #endif
     return item_size;
@@ -647,6 +662,8 @@ void vb6824_init(gpio_num_t tx, gpio_num_t rx){
 #if defined(CONFIG_VB6824_OTA_SUPPORT) && CONFIG_VB6824_OTA_SUPPORT == 1
     jl_set_uart_port(UART_NUM);
 #endif
+
+    g_rx_mux = xSemaphoreCreateMutex();
 
 #if defined(CONFIG_VB6824_TYPE_OPUS_16K_20MS)
     g_rx_ringbuffer = xRingbufferCreate(RECV_BUF_LENGTH, RINGBUF_TYPE_NOSPLIT);
