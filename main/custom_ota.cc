@@ -17,15 +17,20 @@
 
 #define TAG "CustomOta"
 
-
 CustomOta::CustomOta() {
-#ifdef CONFIG_USE_CUSTOM_OTA
-    check_version_url_ = CONFIG_CUSTOM_OTA_VERSION_URL;
-#endif
+
 }
 
 CustomOta::~CustomOta() {
 
+}
+
+std::string CustomOta::GetCheckVersionUrl() {
+#ifdef CONFIG_USE_CUSTOM_OTA
+    return CONFIG_CUSTOM_OTA_VERSION_URL;
+#else
+    return "";
+#endif
 }
 
 bool CustomOta::CheckVersion() {
@@ -36,78 +41,77 @@ bool CustomOta::CheckVersion() {
     current_version_ = app_desc->version;
     ESP_LOGI(TAG, "Current version: %s", current_version_.c_str());
 
-    if (check_version_url_.length() < 10) {
+    std::string url = GetCheckVersionUrl();
+    if (url.length() < 10) {
         ESP_LOGE(TAG, "Check version URL is not properly set");
         return false;
     }
 
-    auto http = board.CreateHttp();
-    for (const auto& header : headers_) {
-        http->SetHeader(header.first, header.second);
-    }
+    auto http = std::unique_ptr<Http>(SetupHttp());
 
-    http->SetHeader("Ota-Version", "2");
-    http->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
-    http->SetHeader("Client-Id", board.GetUuid());
-    http->SetHeader("User-Agent", std::string(BOARD_NAME "/") + app_desc->version);
-    http->SetHeader("Accept-Language", Lang::CODE);
-    http->SetHeader("Content-Type", "application/json");
+    std::string data = board.GetJson();
+    std::string method = data.length() > 0 ? "POST" : "GET";
+    http->SetContent(std::move(data));
 
-    std::string post_data = board.GetJson();
-    std::string method = post_data.length() > 0 ? "POST" : "GET";
-    if (!http->Open(method, check_version_url_, post_data)) {
+    if (!http->Open(method, url)) {
         ESP_LOGE(TAG, "Failed to open HTTP connection");
-        delete http;
         return false;
     }
 
-    auto response = http->GetBody();
+    auto status_code = http->GetStatusCode();
+    if (status_code != 200) {
+        ESP_LOGE(TAG, "Failed to check version, status code: %d", status_code);
+        return false;
+    }
+
+    data = http->ReadAll();
     http->Close();
-    delete http;
 
     // Response: { "firmware": { "version": "1.0.0", "url": "http://" } }
     // Parse the JSON response and check if the version is newer
     // If it is, set has_new_version_ to true and store the new version and URL
     
-    cJSON *root = cJSON_Parse(response.c_str());
+    cJSON *root = cJSON_Parse(data.c_str());
     if (root == NULL) {
         ESP_LOGE(TAG, "Failed to parse JSON response");
         return false;
     }
 
+    has_new_version_ = false;
     cJSON *firmware = cJSON_GetObjectItem(root, "firmware");
-    if (firmware == NULL) {
-        ESP_LOGE(TAG, "Failed to get firmware object");
-        cJSON_Delete(root);
-        return false;
-    }
-    cJSON *version = cJSON_GetObjectItem(firmware, "version");
-    if (version == NULL) {
-        ESP_LOGE(TAG, "Failed to get version object");
-        cJSON_Delete(root);
-        return false;
-    }
-    cJSON *url = cJSON_GetObjectItem(firmware, "url");
-    if (url == NULL) {
-        ESP_LOGE(TAG, "Failed to get url object");
-        cJSON_Delete(root);
-        return false;
-    }
-    cJSON *forced = cJSON_GetObjectItem(firmware, "forced");
-    if (forced && forced->valueint == 1) {
-        forced_ = true;
-    }
+    if (cJSON_IsObject(firmware)) {
+        cJSON *version = cJSON_GetObjectItem(firmware, "version");
+        if (cJSON_IsString(version)) {
+            firmware_version_ = version->valuestring;
+        }
+        cJSON *url = cJSON_GetObjectItem(firmware, "url");
+        if (cJSON_IsString(url)) {
+            firmware_url_ = url->valuestring;
+        }
 
-    firmware_version_ = version->valuestring;
-    firmware_url_ = url->valuestring;
-    cJSON_Delete(root);
+        if (cJSON_IsString(version) && cJSON_IsString(url)) {
+            // Check if the version is newer, for example, 0.1.0 is newer than 0.0.1
+            has_new_version_ = IsNewVersionAvailable(current_version_, firmware_version_);
+            if (has_new_version_) {
+                ESP_LOGI(TAG, "New version available: %s", firmware_version_.c_str());
+            } else {
+                ESP_LOGI(TAG, "Current is the latest version");
+            }
+            // If the force flag is set to 1, the given version is forced to be installed
+            cJSON *force = cJSON_GetObjectItem(firmware, "force");
+            if (cJSON_IsNumber(force) && force->valueint == 1) {
+                has_new_version_ = true;
+            }
 
-    // Check if the version is newer, for example, 0.1.0 is newer than 0.0.1
-    has_new_version_ = IsNewVersionAvailable(current_version_, firmware_version_);
-    if (has_new_version_) {
-        ESP_LOGI(TAG, "New version available: %s", firmware_version_.c_str());
+            cJSON *forced = cJSON_GetObjectItem(firmware, "forced");
+            if (forced && forced->valueint == 1) {
+                forced_ = true;
+            }
+        }
     } else {
-        ESP_LOGI(TAG, "Current is the latest version");
+        ESP_LOGW(TAG, "No firmware section found!");
     }
+
+    cJSON_Delete(root);
     return true;
 }

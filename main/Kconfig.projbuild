@@ -40,7 +40,7 @@ config WEBSOCKET_ACCESS_TOKEN
         Access token for websocket communication.
 
 choice
-    prompt "语言选择"
+    prompt "Default Language"
     default LANGUAGE_ZH_CN
     help
         Select device display language
@@ -74,7 +74,7 @@ config ASSETS_FIX_PATH
         Assets Fix Path
 
 config USE_WECHAT_MESSAGE_STYLE
-    bool "使用微信聊天界面风格"
+    bool "Enable WeChat Message Style"
     default n
     help
         使用微信聊天界面风格
@@ -94,30 +94,41 @@ config SPEAKING_FIRST_MUTE_TIME
         讲话之前静音时间
 
 config USE_WAKE_WORD_DETECT
-    bool "启用唤醒词检测"
+    bool "Enable Wake Word Detection"
     default y
-    depends on IDF_TARGET_ESP32S3 && SPIRAM
+    depends on IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4 && SPIRAM
     help
         需要 ESP32 S3 与 AFE 支持
 
 config USE_AUDIO_PROCESSOR
-    bool "启用音频降噪、增益处理"
+    bool "Enable Audio Noise Reduction"
     default y
-    depends on IDF_TARGET_ESP32S3 && SPIRAM
+    depends on IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4 && SPIRAM
     help
         需要 ESP32 S3 与 AFE 支持
 
 config USE_DEVICE_AEC
-    bool "在通话过程中启用设备端 AEC"
+    bool "Enable Device-Side AEC"
     default n
     help
         因为性能不够，不建议和微信聊天界面风格同时开启
 
 config USE_SERVER_AEC
-    bool "在通话过程中启用服务器端 AEC"
+    bool "Enable Server-Side AEC"
     default n
     help
         启用服务器端 AEC，需要服务器支持
+    
+choice IOT_PROTOCOL
+    prompt "IoT Protocol"
+    default IOT_PROTOCOL_MCP
+    help
+        IoT 协议，用于获取设备状态与发送控制指令
+    config IOT_PROTOCOL_MCP
+        bool "MCP协议 2024-11-05"
+    config IOT_PROTOCOL_XIAOZHI
+        bool "小智IoT协议 1.0"
+endchoice
 
 config WIFI_CONFIG_MODE_SSID_PREFIX
     string "wifi config mode ssid prefix"
@@ -126,7 +137,7 @@ config WIFI_CONFIG_MODE_SSID_PREFIX
 config WIFI_CONFIG_MODE_FORMAT_DISPLAY
     bool "wifi config mode format display"
     default n
-    
+
 config USE_AUDIO_CODEC_ENCODE_OPUS
     select USE_CUSTOM_TASK_STACK_SIZE
     bool "use audio codec encode opus"
@@ -147,7 +158,7 @@ config TACKGROUND_TASK_STACK_SIZE
     default 2048 if ((IDF_TARGET_ESP32C2 || IDF_TARGET_ESP32C3) && (USE_AUDIO_CODEC_ENCODE_OPUS && USE_AUDIO_CODEC_DECODE_OPUS))
     default 8960 if ((IDF_TARGET_ESP32C2 || IDF_TARGET_ESP32C3) && (USE_AUDIO_CODEC_ENCODE_OPUS))
     default 26624 if ((IDF_TARGET_ESP32C2 || IDF_TARGET_ESP32C3))
-    default 32768
+    default 28672
 
 config AUDIO_LOOP_TASK_STACK_SIZE
     depends on USE_CUSTOM_TASK_STACK_SIZE
