@@ -359,7 +359,7 @@ static void vb_ota_evt_cb(jl_ota_evt_id evt, uint32_t data){
         s_mode = VB6824_MODE_AUDIO; 
         do
         {
-            __frame_send(VB6824_CMD_SEND_GET_WAKEUP_WORD, &s_mode, 1);
+            __frame_send(VB6824_CMD_SEND_GET_WAKEUP_WORD, (uint8_t *)&s_mode, 1);
             // ESP_LOGW(TAG, "WAIT FRESH");
             vTaskDelay(100/portTICK_PERIOD_MS);
         } while (s_wait_fresh_wakeup_word);
