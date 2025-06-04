@@ -93,19 +93,26 @@ config SPEAKING_FIRST_MUTE_TIME
     help
         讲话之前静音时间
 
-config USE_WAKE_WORD_DETECT
-    bool "Enable Wake Word Detection"
-    default y
-    depends on IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4 && SPIRAM
+config USE_ESP_WAKE_WORD
+    bool "Enable Wake Word Detection (without AFE)"
+    default n
+    depends on IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C5
     help
-        需要 ESP32 S3 与 AFE 支持
+        支持 ESP32 C3 与 ESP32 C5
+
+config USE_AFE_WAKE_WORD
+    bool "Enable Wake Word Detection (AFE)"
+    default y
+    depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM
+    help
+        需要 ESP32 S3 与 PSRAM 支持
 
 config USE_AUDIO_PROCESSOR
     bool "Enable Audio Noise Reduction"
     default y
-    depends on IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4 && SPIRAM
+    depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM
     help
-        需要 ESP32 S3 与 AFE 支持
+        需要 ESP32 S3 与 PSRAM 支持
 
 config USE_DEVICE_AEC
     bool "Enable Device-Side AEC"
@@ -114,7 +121,7 @@ config USE_DEVICE_AEC
         因为性能不够，不建议和微信聊天界面风格同时开启
 
 config USE_SERVER_AEC
-    bool "Enable Server-Side AEC"
+    bool "Enable Server-Side AEC (Unstable)"
     default n
     help
         启用服务器端 AEC，需要服务器支持
@@ -125,9 +132,9 @@ choice IOT_PROTOCOL
     help
         IoT 协议，用于获取设备状态与发送控制指令
     config IOT_PROTOCOL_MCP
-        bool "MCP协议 2024-11-05"
+        bool "MCP 2024-11-05"
     config IOT_PROTOCOL_XIAOZHI
-        bool "小智IoT协议 1.0"
+        bool "Xiaozhi IoT 1.0 (Deprecated)"
 endchoice
 
 config WIFI_CONFIG_MODE_SSID_PREFIX

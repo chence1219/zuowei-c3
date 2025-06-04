@@ -50,10 +50,14 @@ list(APPEND SOURCES ${BOARD_SOURCES})
 if(CONFIG_USE_AUDIO_PROCESSOR)
     list(APPEND SOURCES "audio_processing/afe_audio_processor.cc")
 else()
-    list(APPEND SOURCES "audio_processing/dummy_audio_processor.cc")
+    list(APPEND SOURCES "audio_processing/no_audio_processor.cc")
 endif()
-if(CONFIG_USE_WAKE_WORD_DETECT)
-    list(APPEND SOURCES "audio_processing/wake_word_detect.cc")
+if(CONFIG_USE_AFE_WAKE_WORD)
+    list(APPEND SOURCES "audio_processing/afe_wake_word.cc")
+elseif(CONFIG_USE_ESP_WAKE_WORD)
+    list(APPEND SOURCES "audio_processing/esp_wake_word.cc")
+else()
+    list(APPEND SOURCES "audio_processing/no_wake_word.cc")
 endif()
 
 # 根据Kconfig选择语言目录
@@ -166,3 +170,46 @@ endif()
 add_custom_target(lang_header ALL
     DEPENDS ${LANG_HEADER}
 )
+
+if(CONFIG_BOARD_TYPE_ESP_HI)
+set(URL "https://github.com/espressif2022/image_player/raw/main/test_apps/test_8bit")
+set(SPIFFS_DIR "${CMAKE_BINARY_DIR}/emoji")
+file(MAKE_DIRECTORY ${SPIFFS_DIR})
+
+# List all files to download
+set(FILES_TO_DOWNLOAD "")
+list(APPEND FILES_TO_DOWNLOAD "Anger_enter.aaf" "Anger_loop.aaf" "Anger_return.aaf")
+list(APPEND FILES_TO_DOWNLOAD "happy_enter.aaf" "happy_loop.aaf" "happ_return.aaf")
+list(APPEND FILES_TO_DOWNLOAD "sad_enter.aaf" "sad_loop.aaf" "sad_return.aaf")
+list(APPEND FILES_TO_DOWNLOAD "scorn_enter.aaf" "scorn_loop.aaf" "scorn_return.aaf")
+list(APPEND FILES_TO_DOWNLOAD "left_enter.aaf" "left_loop.aaf" "left_return.aaf")
+list(APPEND FILES_TO_DOWNLOAD "right_enter.aaf" "right_loop.aaf" "right_return.aaf")
+list(APPEND FILES_TO_DOWNLOAD "asking.aaf" "blink_once.aaf" "blink_quick.aaf")
+list(APPEND FILES_TO_DOWNLOAD "connecting.aaf" "panic_enter.aaf" "panic_loop.aaf")
+list(APPEND FILES_TO_DOWNLOAD "panic_return.aaf" "wake.aaf")
+
+foreach(FILENAME IN LISTS FILES_TO_DOWNLOAD)
+    set(REMOTE_FILE "${URL}/${FILENAME}")
+    set(LOCAL_FILE "${SPIFFS_DIR}/${FILENAME}")
+    
+    # 检查本地文件是否存在
+    if(EXISTS ${LOCAL_FILE})
+        message(STATUS "File ${FILENAME} already exists, skipping download")
+    else()
+        message(STATUS "Downloading ${FILENAME}")
+        file(DOWNLOAD ${REMOTE_FILE} ${LOCAL_FILE}
+             STATUS DOWNLOAD_STATUS)
+        list(GET DOWNLOAD_STATUS 0 STATUS_CODE)
+        if(NOT STATUS_CODE EQUAL 0)
+            message(FATAL_ERROR "Failed to download ${FILENAME} from ${URL}")
+        endif()
+    endif()
+endforeach()
+
+spiffs_create_partition_assets(
+    assets_A
+    ${SPIFFS_DIR}
+    FLASH_IN_PROJECT
+    MMAP_FILE_SUPPORT_FORMAT ".aaf"
+)
+endif()
