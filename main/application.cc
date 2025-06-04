@@ -14,7 +14,15 @@
 #if CONFIG_USE_AUDIO_PROCESSOR
 #include "afe_audio_processor.h"
 #else
-#include "dummy_audio_processor.h"
+#include "no_audio_processor.h"
+#endif
+
+#if CONFIG_USE_AFE_WAKE_WORD
+#include "afe_wake_word.h"
+#elif CONFIG_USE_ESP_WAKE_WORD
+#include "esp_wake_word.h"
+#else
+#include "no_wake_word.h"
 #endif
 
 #include <cstring>
@@ -66,7 +74,15 @@ Application::Application() {
 #if CONFIG_USE_AUDIO_PROCESSOR
     audio_processor_ = std::make_unique<AfeAudioProcessor>();
 #else
-    audio_processor_ = std::make_unique<DummyAudioProcessor>();
+    audio_processor_ = std::make_unique<NoAudioProcessor>();
+#endif
+
+#if CONFIG_USE_AFE_WAKE_WORD
+    wake_word_ = std::make_unique<AfeWakeWord>();
+#elif CONFIG_USE_ESP_WAKE_WORD
+    wake_word_ = std::make_unique<EspWakeWord>();
+#else
+    wake_word_ = std::make_unique<NoWakeWord>();
 #endif
 
     esp_timer_create_args_t clock_timer_args = {
@@ -140,9 +156,7 @@ void Application::CheckNewVersion() {
 
             auto& board = Board::GetInstance();
             board.SetPowerSaveMode(false);
-#if CONFIG_USE_WAKE_WORD_DETECT
-            wake_word_detect_.StopDetection();
-#endif
+            wake_word_->StopDetection();
             // 预先关闭音频输出，避免升级过程有音频操作
             auto codec = board.GetAudioCodec();
             codec->EnableInput(false);
@@ -267,8 +281,6 @@ void Application::PlaySound(const std::string_view& sound) {
     }
     background_task_->WaitForCompletion();
 
-    // The assets are encoded at 16000Hz, 60ms frame duration
-    SetDecodeSampleRate(16000, 60);
     const char* data = sound.data();
     size_t size = sound.size();
     for (const char* p = data; p < data + size; ) {
@@ -277,6 +289,8 @@ void Application::PlaySound(const std::string_view& sound) {
 
         auto payload_size = ntohs(p3->payload_size);
         AudioStreamPacket packet;
+        packet.sample_rate = 16000;
+        packet.frame_duration = 60;
         packet.payload.resize(payload_size);
         memcpy(packet.payload.data(), p3->payload, payload_size);
         p += payload_size;
@@ -450,7 +464,7 @@ void Application::Start() {
     });
     protocol_->OnIncomingAudio([this](AudioStreamPacket&& packet) {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (audio_decode_queue_.size() < MAX_AUDIO_PACKETS_IN_QUEUE) {
+        if (device_state_ == kDeviceStateSpeaking && audio_decode_queue_.size() < MAX_AUDIO_PACKETS_IN_QUEUE) {
             audio_decode_queue_.emplace_back(std::move(packet));
         }
     });
@@ -460,7 +474,6 @@ void Application::Start() {
             ESP_LOGW(TAG, "Server sample rate %d does not match device output sample rate %d, resampling may cause distortion",
                 protocol_->server_sample_rate(), codec->output_sample_rate());
         }
-        SetDecodeSampleRate(protocol_->server_sample_rate(), protocol_->server_frame_duration());
 
 #if CONFIG_IOT_PROTOCOL_XIAOZHI
         auto& thing_manager = iot::ThingManager::GetInstance();
@@ -620,27 +633,40 @@ void Application::Start() {
         }
     });
 
-#if CONFIG_USE_WAKE_WORD_DETECT
-    wake_word_detect_.Initialize(codec);
-    wake_word_detect_.OnWakeWordDetected([this](const std::string& wake_word) {
+    wake_word_->Initialize(codec);
+    wake_word_->OnWakeWordDetected([this](const std::string& wake_word) {
         Schedule([this, &wake_word]() {
-            if (device_state_ == kDeviceStateIdle) {
-                SetDeviceState(kDeviceStateConnecting);
-                wake_word_detect_.EncodeWakeWordData();
+            if (!protocol_) {
+                return;
+            }
 
-                if (!protocol_ || !protocol_->OpenAudioChannel()) {
-                    wake_word_detect_.StartDetection();
-                    return;
+            if (device_state_ == kDeviceStateIdle) {
+                wake_word_->EncodeWakeWordData();
+
+                if (!protocol_->IsAudioChannelOpened()) {
+                    SetDeviceState(kDeviceStateConnecting);
+                    if (!protocol_->OpenAudioChannel()) {
+                        wake_word_->StartDetection();
+                        return;
+                    }
                 }
-                
+
+                ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
+#if CONFIG_USE_AFE_WAKE_WORD
                 AudioStreamPacket packet;
                 // Encode and send the wake word data to the server
-                while (wake_word_detect_.GetWakeWordOpus(packet.payload)) {
+                while (wake_word_->GetWakeWordOpus(packet.payload)) {
                     protocol_->SendAudio(packet);
                 }
                 // Set the chat state to wake word detected
                 protocol_->SendWakeWordDetected(wake_word);
-                ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
+#else
+                // Play the pop up sound to indicate the wake word is detected
+                // And wait 60ms to make sure the queue has been processed by audio task
+                ResetDecoder();
+                PlaySound(Lang::Sounds::P3_POPUP);
+                vTaskDelay(pdMS_TO_TICKS(60));
+#endif
                 SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);
             } else if (device_state_ == kDeviceStateSpeaking) {
                 AbortSpeaking(kAbortReasonWakeWordDetected);
@@ -649,8 +675,7 @@ void Application::Start() {
             }
         });
     });
-    wake_word_detect_.StartDetection();
-#endif
+    wake_word_->StartDetection();
 
     // Wait for the new version check to finish
     xEventGroupWaitBits(event_group_, CHECK_NEW_VERSION_DONE_EVENT, pdTRUE, pdFALSE, portMAX_DELAY);
@@ -780,12 +805,6 @@ void Application::OnAudioOutput() {
         return;
     }
 
-    if (device_state_ == kDeviceStateListening) {
-        audio_decode_queue_.clear();
-        audio_decode_cv_.notify_all();
-        return;
-    }
-
     auto packet = std::move(audio_decode_queue_.front());
     audio_decode_queue_.pop_front();
     lock.unlock();
@@ -795,6 +814,9 @@ void Application::OnAudioOutput() {
     if(free_sram < 10000){
         return;
     }
+
+    // Synchronize the sample rate and frame duration
+    SetDecodeSampleRate(packet.sample_rate, packet.frame_duration);
 
     busy_decoding_audio_ = true;
     background_task_->Schedule([this, codec, packet = std::move(packet)]() mutable {
@@ -812,26 +834,24 @@ void Application::OnAudioOutput() {
         WriteAudio(pcm, opus_decoder_->sample_rate());
 #endif
 #ifdef CONFIG_USE_SERVER_AEC
-            std::lock_guard<std::mutex> lock(timestamp_mutex_);
-            timestamp_queue_.push_back(packet.timestamp);
-            last_output_timestamp_ = packet.timestamp;
+        std::lock_guard<std::mutex> lock(timestamp_mutex_);
+        timestamp_queue_.push_back(packet.timestamp);
 #endif
         last_output_time_ = std::chrono::steady_clock::now();
     });
 }
 
 void Application::OnAudioInput() {
-#if CONFIG_USE_WAKE_WORD_DETECT
-    if (wake_word_detect_.IsDetectionRunning()) {
+    if (wake_word_->IsDetectionRunning()) {
         std::vector<int16_t> data;
-        int samples = wake_word_detect_.GetFeedSize();
+        int samples = wake_word_->GetFeedSize();
         if (samples > 0) {
-            ReadAudio(data, 16000, samples);
-            wake_word_detect_.Feed(data);
-            return;
+            if (ReadAudio(data, 16000, samples)) {
+                wake_word_->Feed(data);
+                return;
+            }
         }
     }
-#endif
     if (audio_processor_->IsRunning()) {
 #ifdef CONFIG_USE_AUDIO_CODEC_ENCODE_OPUS
         int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
@@ -839,7 +859,9 @@ void Application::OnAudioInput() {
             return;
         }
         std::vector<uint8_t> opus;
-        ReadAudio(opus, 16000, 30 * 16000 / 1000);
+        if (!ReadAudio(opus, 16000, 30 * 16000 / 1000)) {
+            return;
+        }
         AudioStreamPacket packet;
         packet.payload = std::move(opus);
 #ifdef CONFIG_USE_SERVER_AEC
@@ -869,9 +891,10 @@ void Application::OnAudioInput() {
         std::vector<int16_t> data;
         int samples = audio_processor_->GetFeedSize();
         if (samples > 0) {
-            ReadAudio(data, 16000, samples);
-            audio_processor_->Feed(data);
-            return;
+            if (ReadAudio(data, 16000, samples)) {
+                audio_processor_->Feed(data);
+                return;
+            }
         }
 #endif
     }
@@ -882,12 +905,16 @@ void Application::OnAudioInput() {
 
 }
 
-void Application::ReadAudio(std::vector<int16_t>& data, int sample_rate, int samples) {
+bool Application::ReadAudio(std::vector<int16_t>& data, int sample_rate, int samples) {
     auto codec = Board::GetInstance().GetAudioCodec();
+    if (!codec->input_enabled()) {
+        return false;
+    }
+
     if (codec->input_sample_rate() != sample_rate) {
         data.resize(samples * codec->input_sample_rate() / sample_rate);
         if (!codec->InputData(data)) {
-            return;
+            return false;
         }
         if (codec->input_channels() == 2) {
             auto mic_channel = std::vector<int16_t>(data.size() / 2);
@@ -913,18 +940,25 @@ void Application::ReadAudio(std::vector<int16_t>& data, int sample_rate, int sam
     } else {
         data.resize(samples);
         if (!codec->InputData(data)) {
-            return;
+            return false;
         }
     }
+    return true;
 }
 
 #ifdef CONFIG_USE_AUDIO_CODEC_ENCODE_OPUS
-void Application::ReadAudio(std::vector<uint8_t>& opus, int sample_rate, int samples) {
+bool Application::ReadAudio(std::vector<uint8_t>& opus, int sample_rate, int samples) {
     auto codec = Board::GetInstance().GetAudioCodec();
+    if (!codec->input_enabled()) {
+        return false;
+    }
+
     opus.resize(samples);
     if (!codec->InputData(opus)) {
-        return;
+        return false;
     }
+
+    return true;
 }
 #endif
 
@@ -980,17 +1014,13 @@ void Application::SetDeviceState(DeviceState state) {
             display->SetStatus(Lang::Strings::STANDBY);
             display->SetEmotion("neutral");
             audio_processor_->Stop();
-            
-#if CONFIG_USE_WAKE_WORD_DETECT
-            wake_word_detect_.StartDetection();
-#endif
+            wake_word_->StartDetection();
             break;
         case kDeviceStateConnecting:
             display->SetStatus(Lang::Strings::CONNECTING);
             display->SetEmotion("neutral");
             display->SetChatMessage("system", "");
             timestamp_queue_.clear();
-            last_output_timestamp_ = 0;
             break;
         case kDeviceStateListening:
             display->SetStatus(Lang::Strings::LISTENING);
@@ -1005,6 +1035,8 @@ void Application::SetDeviceState(DeviceState state) {
                 // Send the start listening command
                 protocol_->SendStartListening(listening_mode_);
                 if (previous_state == kDeviceStateSpeaking) {
+                    audio_decode_queue_.clear();
+                    audio_decode_cv_.notify_all();
                     // FIXME: Wait for the speaker to empty the buffer
                     vTaskDelay(pdMS_TO_TICKS(120));
                 }
@@ -1012,10 +1044,8 @@ void Application::SetDeviceState(DeviceState state) {
 #else
                 opus_encoder_->ResetState();
 #endif
-#if CONFIG_USE_WAKE_WORD_DETECT
-                wake_word_detect_.StopDetection();
-#endif
                 audio_processor_->Start();
+                wake_word_->StopDetection();
             }
             break;
         case kDeviceStateSpeaking:
@@ -1023,8 +1053,11 @@ void Application::SetDeviceState(DeviceState state) {
 
             if (listening_mode_ != kListeningModeRealtime) {
                 audio_processor_->Stop();
-#if CONFIG_USE_WAKE_WORD_DETECT
-                wake_word_detect_.StartDetection();
+                // Only AFE wake word can be detected in speaking mode
+#if CONFIG_USE_AFE_WAKE_WORD
+                wake_word_->StartDetection();
+#else
+                wake_word_->StopDetection();
 #endif
             }
             ResetDecoder();
