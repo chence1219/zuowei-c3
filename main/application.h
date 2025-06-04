@@ -93,11 +93,6 @@ public:
     void ShowOtaInfo(const std::string& code, const std::string& ip="");
 #endif
 
-#if CONFIG_USE_DEVICE_AEC || CONFIG_USE_SERVER_AEC
-    void SetRealtimeChatEnable(bool enable) { realtime_chat_enabled_ = enable; }
-    bool GetRealtimeChatEnable(void) { return realtime_chat_enabled_; }
-#endif
-
     void StartListeningAndPlayHere(void);
 
 private:
