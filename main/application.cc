@@ -382,6 +382,11 @@ void Application::DismissAlert() {
 }
 
 void Application::PlaySound(const std::string_view& sound, bool reset_decoder) {
+    if(opus_decoder_ == nullptr){
+        ESP_LOGW(TAG, "Decoder is release, cannot play sound");
+        return;
+    }
+
     if(reset_decoder){
         ResetDecoder();
     }
@@ -1386,17 +1391,17 @@ void Application::SetAecMode(AecMode mode) {
     });
 }
 
-#if defined(CONFIG_VB6824_OTA_SUPPORT) && CONFIG_VB6824_OTA_SUPPORT == 1
 void Application::ReleaseDecoder() {
     ESP_LOGW(TAG, "Release decoder");
-    while (!audio_decode_queue_.empty())
-    {  
-        vTaskDelay(pdMS_TO_TICKS(200));
+    {
+        std::unique_lock<std::mutex> lock(mutex_);
+        audio_decode_cv_.wait(lock, [this]() {
+            return audio_decode_queue_.empty();
+        });
     }
     std::lock_guard<std::mutex> lock(mutex_);
     vTaskDelete(audio_loop_task_handle_);
     audio_loop_task_handle_ = nullptr;
-    background_task_->WaitForCompletion();
     background_task_->WaitForCompletion();
     delete background_task_;
     background_task_ = nullptr;
@@ -1405,6 +1410,7 @@ void Application::ReleaseDecoder() {
 }
 
 
+#if defined(CONFIG_VB6824_OTA_SUPPORT) && CONFIG_VB6824_OTA_SUPPORT == 1
 void Application::ShowOtaInfo(const std::string& code,const std::string& ip) {
     Schedule([this]() {
         if(device_state_ != kDeviceStateActivating && device_state_ != kDeviceStateIdle && protocol_ != nullptr) {

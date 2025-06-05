@@ -65,6 +65,13 @@ void WifiBoard::EnterWifiConfigMode() {
 
     // 播报配置 WiFi 的提示
     application.Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "", Lang::Sounds::P3_WIFICONFIG);
+
+#ifdef CONFIG_WIFI_CONFIG_MODE_AUTO_DELAY_RELEASE_DECODER_TIME
+    if(CONFIG_WIFI_CONFIG_MODE_AUTO_DELAY_RELEASE_DECODER_TIME != -1){
+        vTaskDelay(pdMS_TO_TICKS(CONFIG_WIFI_CONFIG_MODE_AUTO_DELAY_RELEASE_DECODER_TIME));
+        application.ReleaseDecoder();
+    }
+#endif
     
     // Wait forever until reset after configuration
     while (true) {

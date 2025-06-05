@@ -137,13 +137,19 @@ choice IOT_PROTOCOL
         bool "Xiaozhi IoT 1.0 (Deprecated)"
 endchoice
 
+menu "wifi config mode"
 config WIFI_CONFIG_MODE_SSID_PREFIX
     string "wifi config mode ssid prefix"
     default "xiaozhi"
 
+config WIFI_CONFIG_MODE_AUTO_DELAY_RELEASE_DECODER_TIME
+    int "wifi config mode delay auto release decoder time"
+    default -1
+
 config WIFI_CONFIG_MODE_FORMAT_DISPLAY
     bool "wifi config mode format display"
     default n
+endmenu
 
 config USE_AUDIO_CODEC_ENCODE_OPUS
     select USE_CUSTOM_TASK_STACK_SIZE
