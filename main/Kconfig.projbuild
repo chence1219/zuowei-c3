@@ -79,20 +79,6 @@ config USE_WECHAT_MESSAGE_STYLE
     help
         使用微信聊天界面风格
 
-menu "UI"
-    config UI_STATUS_BAR_PAD
-        int "Status Sar Pad"
-        default 2
-        help
-            状态栏左右间距  
-endmenu
-
-config SPEAKING_FIRST_MUTE_TIME
-    int "speaking first mute time"
-    default 0
-    help
-        讲话之前静音时间
-
 config USE_ESP_WAKE_WORD
     bool "Enable Wake Word Detection (without AFE)"
     default n
@@ -150,6 +136,20 @@ config WIFI_CONFIG_MODE_FORMAT_DISPLAY
     bool "wifi config mode format display"
     default n
 endmenu
+
+menu "ui"
+    config UI_STATUS_BAR_PAD
+        int "Status Sar Pad"
+        default 2
+        help
+            状态栏左右间距  
+endmenu
+
+config SPEAKING_FIRST_MUTE_TIME
+    int "speaking first mute time"
+    default 0
+    help
+        讲话之前静音时间
 
 config USE_AUDIO_CODEC_ENCODE_OPUS
     select USE_CUSTOM_TASK_STACK_SIZE
