@@ -390,6 +390,11 @@ void Application::PlaySound(const std::string_view& sound, bool reset_decoder) {
     if(reset_decoder){
         ResetDecoder();
     }
+
+    auto codec = Board::GetInstance().GetAudioCodec();
+    if (!codec->output_enabled()) {
+        codec->EnableOutput(true);
+    }
     
     // Wait for the previous sound to finish
     {
