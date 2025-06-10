@@ -23,6 +23,7 @@
 #include "background_task.h"
 #include "audio_processor.h"
 #include "wake_word.h"
+#include "audio_debugger.h"
 
 #define SCHEDULE_EVENT (1 << 0)
 #define SEND_AUDIO_EVENT (1 << 1)
@@ -101,6 +102,7 @@ private:
 
     std::unique_ptr<WakeWord> wake_word_;
     std::unique_ptr<AudioProcessor> audio_processor_;
+    std::unique_ptr<AudioDebugger> audio_debugger_;
     Ota ota_;
 #ifdef CONFIG_USE_CUSTOM_OTA
     CustomOta custom_ota_;
