@@ -79,7 +79,7 @@ public:
     void PlaySound(const std::string_view& sound, bool reset_decoder = false);
     bool CanEnterSleepMode();
     void SendMcpMessage(const std::string& payload);
-    void SetAecMode(AecMode mode);
+    void SetAecMode(AecMode mode, bool notification = true);
     AecMode GetAecMode() const { return aec_mode_; }
     BackgroundTask* GetBackgroundTask() const { return background_task_; }
 
