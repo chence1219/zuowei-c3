@@ -45,6 +45,10 @@ size_t NoAudioProcessor::GetFeedSize() {
 
 void NoAudioProcessor::EnableDeviceAec(bool enable) {
     if (enable) {
+#if CONFIG_USE_DEVICE_AEC
+
+#else
         ESP_LOGE(TAG, "Device AEC is not supported");
+#endif
     }
 }
