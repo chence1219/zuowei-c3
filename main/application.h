@@ -82,6 +82,7 @@ public:
     void SetAecMode(AecMode mode);
     AecMode GetAecMode() const { return aec_mode_; }
     BackgroundTask* GetBackgroundTask() const { return background_task_; }
+    void SendChatText(const std::string& text);
 
 #ifdef CONFIG_USE_CUSTOM_OTA
     CustomOta& GetCustomOta() {

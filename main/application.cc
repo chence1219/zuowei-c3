@@ -1504,3 +1504,26 @@ void Application::ShowOtaInfo(const std::string& code,const std::string& ip) {
     });
 }
 #endif
+
+void Application::SendChatText(const std::string &text) {
+  if (protocol_ == nullptr) {
+    return;
+  }
+  if (device_state_ != kDeviceStateListening) {
+    if (!protocol_->IsAudioChannelOpened()) {
+      Application::GetInstance().SetDeviceState(kDeviceStateConnecting);
+      if (!protocol_->OpenAudioChannel()) {
+        ESP_LOGE(TAG, "Failed to open audio channel");
+        Application::GetInstance().SetDeviceState(kDeviceStateIdle);
+        return;
+      }
+      Application::GetInstance().SetDeviceState(kDeviceStateListening);
+    }
+  }
+  Schedule([this, text]() {
+    if (protocol_) {
+      protocol_->SendText(R"a({"type": "listen","state": "detect","text": ")a" +
+                          text + R"a(","source": "text"})a");
+    }
+  });
+}
