@@ -79,6 +79,12 @@ bool Ota::CheckVersion() {
     ESP_LOGI(TAG, "Current version: %s", current_version_.c_str());
 
     std::string url = GetCheckVersionUrl();
+
+    if (url.length() == 0) {
+        ESP_LOGW(TAG, "Check version URL is null");
+        return true;
+    }
+
     if (url.length() < 10) {
         ESP_LOGE(TAG, "Check version URL is not properly set");
         return false;
