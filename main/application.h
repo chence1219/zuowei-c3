@@ -169,7 +169,7 @@ private:
     void OnClockTimer();
     void SetListeningMode(ListeningMode mode);
     void AudioLoop();
-
+    void PushMuteAudio(int mute_time);
     void PlayHere(void);
 };
 

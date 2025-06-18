@@ -136,6 +136,12 @@ choice IOT_PROTOCOL
         bool "Xiaozhi IoT 1.0 (Deprecated)"
 endchoice
 
+config SPEAKING_FIRST_MUTE_TIME
+    int "Time to mute before speaking"
+    default 0
+    help
+        讲话之前静音时间
+
 menu "wifi config mode"
 config WIFI_CONFIG_MODE_SSID_PREFIX
     string "wifi config mode ssid prefix"
@@ -157,12 +163,6 @@ menu "ui"
         help
             状态栏左右间距  
 endmenu
-
-config SPEAKING_FIRST_MUTE_TIME
-    int "speaking first mute time"
-    default 0
-    help
-        讲话之前静音时间
 
 config USE_AUDIO_CODEC_ENCODE_OPUS
     select USE_CUSTOM_TASK_STACK_SIZE
