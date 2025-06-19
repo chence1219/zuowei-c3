@@ -136,6 +136,11 @@ choice IOT_PROTOCOL
         bool "Xiaozhi IoT 1.0 (Deprecated)"
 endchoice
 
+config MCP_TOOLCALL_DEFAULT_STACK_SIZE
+    int "mcp toolcall default stack size"
+    depends on IOT_PROTOCOL_MCP
+    default 6144
+    
 config SPEAKING_FIRST_MUTE_TIME
     int "Time to mute before speaking"
     default 0
