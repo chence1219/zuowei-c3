@@ -198,4 +198,10 @@ config STT_SIMPLIFIED_CHINESE_TO_TRADITIONAL_CHINESE
     help
         将语音识别结果从简体中文转换为繁体中文
 
+config START_CHAT_ON_POWER_ON
+    bool "start char after power on"
+    default n
+    help
+        在开机后立即开始对话并回复一句话
+
 endmenu

@@ -859,6 +859,16 @@ void Application::Start() {
         ResetDecoder();
         PlaySound(Lang::Sounds::P3_SUCCESS);
     }
+    
+#ifdef CONFIG_START_CHAT_ON_POWER_ON
+    Schedule([this](){
+        vTaskDelay(pdMS_TO_TICKS(2000));
+        if(GetDeviceState()!=kDeviceStateListening){
+            ToggleChatState();    
+        }
+        SendChatText("你好");
+    });
+#endif
 
     // Print heap stats
     SystemInfo::PrintHeapStats();
