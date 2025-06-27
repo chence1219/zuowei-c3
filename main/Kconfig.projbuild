@@ -204,4 +204,10 @@ config START_CHAT_ON_POWER_ON
     help
         在开机后立即开始对话并回复一句话
 
+config ENABLE_CAMERA_SOUND
+    bool "是否开启摄像头的拍照音效"
+    default n
+    help 
+        在拍照的时候播放咔嚓音效
+
 endmenu
