@@ -48,6 +48,10 @@
 #define CONFIG_AUDIO_LOOP_TASK_STACK_SIZE   (4096*2)
 #endif
 
+#ifdef CONFIG_STT_SIMPLIFIED_CHINESE_TO_TRADITIONAL_CHINESE
+#include "stt_simplified_to_traditional.h"
+#endif
+
 static const char* const STATE_STRINGS[] = {
     "unknown",
     "starting",
@@ -708,7 +712,16 @@ void Application::Start() {
             if (cJSON_IsString(text)) {
                 ESP_LOGI(TAG, ">> %s", text->valuestring);
                 Schedule([this, display, message = std::string(text->valuestring)]() {
+#ifdef CONFIG_STT_SIMPLIFIED_CHINESE_TO_TRADITIONAL_CHINESE
+                    std::string temp = message;
+                    if(SttSimplifiedToTraditional::GetInstance()->Translate(temp,temp)){
+                        display->SetChatMessage("user", temp.c_str());
+                    }else{
+                        display->SetChatMessage("user", message.c_str());
+                    }
+#else
                     display->SetChatMessage("user", message.c_str());
+#endif
                 });
             }
         } else if (strcmp(type->valuestring, "llm") == 0) {
@@ -877,6 +890,16 @@ void Application::Start() {
         ResetDecoder();
         PlaySound(Lang::Sounds::P3_SUCCESS);
     }
+    
+#ifdef CONFIG_START_CHAT_ON_POWER_ON
+    Schedule([this](){
+        vTaskDelay(pdMS_TO_TICKS(2000));
+        if(GetDeviceState()!=kDeviceStateListening){
+            ToggleChatState();    
+        }
+        SendChatText("你好");
+    });
+#endif
 
     // Print heap stats
     SystemInfo::PrintHeapStats();

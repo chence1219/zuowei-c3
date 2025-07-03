@@ -3,6 +3,8 @@
 #include "display.h"
 #include "board.h"
 #include "system_info.h"
+#include "application.h"
+#include "../assets/lang_config.h"
 
 #include <esp_log.h>
 #include <esp_heap_caps.h>

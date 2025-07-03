@@ -197,4 +197,22 @@ config AUDIO_LOOP_TASK_STACK_SIZE
     default 2048 if IDF_TARGET_ESP32C2
     default 8192
 
+config STT_SIMPLIFIED_CHINESE_TO_TRADITIONAL_CHINESE
+    bool "STT Simplified Chinese to Traditional Chinese"
+    default n
+    help
+        将语音识别结果从简体中文转换为繁体中文
+
+config START_CHAT_ON_POWER_ON
+    bool "start char after power on"
+    default n
+    help
+        在开机后立即开始对话并回复一句话
+
+config ENABLE_CAMERA_SOUND
+    bool "是否开启摄像头的拍照音效"
+    default n
+    help 
+        在拍照的时候播放咔嚓音效
+
 endmenu
