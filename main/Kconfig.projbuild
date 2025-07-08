@@ -19,6 +19,13 @@ config CUSTOM_OTA_VERSION_URL
     help
         The application will access this URL to check for updates.
 
+config USE_BLUFI_NET_CONFIGURING
+    depends on BT_NIMBLE_BLUFI_ENABLE
+    bool "使用blufi配网"
+    default n
+    help
+        使用blufi配网而不是ap配网
+
 config CONNECTION_FORCE_FIXED_WEBSOCKET
     bool "Force Fixed Websocket"
     default n
