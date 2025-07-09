@@ -19,6 +19,10 @@
 #include <sstream>
 #include <algorithm>
 
+#ifdef CONFIG_USE_BLUFI_NET_CONFIGURING
+#include "doit_blufi.h"
+#endif
+
 #define TAG "Ota"
 
 
@@ -42,7 +46,14 @@ Ota::~Ota() {
 
 std::string Ota::GetCheckVersionUrl() {
     Settings settings("wifi", false);
+#ifndef CONFIG_USE_BLUFI_NET_CONFIGURING
     std::string url = settings.GetString("ota_url");
+#else
+    // 如果使用blufi配网的话，需要从blufi_storage中获取
+    char ota_url[128];
+    blufi_storage_read_ota_url(ota_url);
+    std::string url = ota_url;
+#endif
     if (url.empty()) {
         url = CONFIG_OTA_URL;
     }
@@ -98,6 +109,49 @@ bool Ota::CheckVersion() {
 
     if (!http->Open(method, url)) {
         ESP_LOGE(TAG, "Failed to open HTTP connection");
+#ifdef CONFIG_USE_ALTERNATIVE_OTA
+        //当ota接口无法连接时，若开启可变ota，则重新获取ota接口
+        ESP_LOGI(TAG, "Try to get newest ota url");
+        auto http_alternative = std::unique_ptr<Http>(board.CreateHttp());
+        if(!http_alternative->Open("GET", CONFIG_ALTERNATIVE_OTA_URL)){
+            ESP_LOGE(TAG,"Failed to get newest ota url");
+            return false;
+        }
+        // auto status_code = http->GetStatusCode();
+        // if (status_code != 200) {
+        //     ESP_LOGE(TAG, "Failed to get newest ota url, status code: %d", status_code);
+        //     return false;
+        // }
+        std::string alternative_data = http_alternative->ReadAll();
+        http_alternative->Close();
+        cJSON* root = cJSON_Parse(alternative_data.c_str());
+        if (root == NULL) {
+            ESP_LOGE(TAG, "Failed to parse JSON response");
+            return false;
+        }
+        cJSON* ota_url_obj = cJSON_GetObjectItem(root, "ota_url");
+        if(ota_url_obj == NULL||!cJSON_IsString(ota_url_obj)){
+            ESP_LOGE(TAG, "Error alternative ota json");
+            return false;
+        }
+        auto ota_url = cJSON_GetStringValue(ota_url_obj);
+        if(ota_url==NULL){
+            ESP_LOGE(TAG, "Alternative ota url null");
+            return false;
+        }
+        url = ota_url;
+        if(url.empty()){
+            ESP_LOGE(TAG, "url empty");
+            return false;
+        }
+        if(!http->Open(method, url)){
+            ESP_LOGE(TAG, "Failed to open HTTP connection");
+            return false;
+        }
+        Settings settings("wifi", true);
+        settings.SetString("ota_url", url);
+        return true;
+#endif
         return false;
     }
 
