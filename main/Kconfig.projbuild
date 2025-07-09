@@ -136,6 +136,12 @@ choice IOT_PROTOCOL
         bool "Xiaozhi IoT 1.0 (Deprecated)"
 endchoice
 
+config USE_AUDIO_TEST
+    bool "Enable Audio Test"
+    default n
+    help
+        启用音频测试功能
+
 config MCP_TOOLCALL_DEFAULT_STACK_SIZE
     int "mcp toolcall default stack size"
     depends on IOT_PROTOCOL_MCP

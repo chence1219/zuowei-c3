@@ -463,13 +463,16 @@ void Application::ToggleChatState() {
     if (device_state_ == kDeviceStateActivating) {
         SetDeviceState(kDeviceStateIdle);
         return;
-    } else if (device_state_ == kDeviceStateWifiConfiguring) {
+    } 
+#ifdef CONFIG_USE_AUDIO_TEST
+    else if (device_state_ == kDeviceStateWifiConfiguring) {
         EnterAudioTestingMode();
         return;
     } else if (device_state_ == kDeviceStateAudioTesting) {
         ExitAudioTestingMode();
         return;
     }
+#endif
 
     if (!protocol_) {
         ESP_LOGE(TAG, "Protocol not initialized");
