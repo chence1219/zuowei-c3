@@ -1501,6 +1501,10 @@ void Application::ReleaseDecoder() {
     ESP_LOGW(TAG, "Release decoder");
     {
         std::unique_lock<std::mutex> lock(mutex_);
+        if(opus_decoder_ == nullptr){
+            ESP_LOGW(TAG, "Decoder is release");
+            return;
+        }
         audio_decode_cv_.wait(lock, [this]() {
             return audio_decode_queue_.empty();
         });
@@ -1515,6 +1519,41 @@ void Application::ReleaseDecoder() {
     ESP_LOGW(TAG, "Decoder released DONE");
 }
 
+void Application::CreateDecoder() {
+    std::unique_lock<std::mutex> lock(mutex_);
+    if(background_task_ == nullptr) {
+        background_task_ = new BackgroundTask(CONFIG_TACKGROUND_TASK_STACK_SIZE);
+    }
+    
+    if(audio_loop_task_handle_ == nullptr) {
+#if CONFIG_USE_AUDIO_PROCESSOR
+        xTaskCreatePinnedToCore([](void* arg) {
+            Application* app = (Application*)arg;
+            app->AudioLoop();
+            vTaskDelete(NULL);
+        }, "audio_loop", CONFIG_AUDIO_LOOP_TASK_STACK_SIZE, this, 8, &audio_loop_task_handle_, 1);
+#else
+        xTaskCreate([](void* arg) {
+            Application* app = (Application*)arg;
+            app->AudioLoop();
+            vTaskDelete(NULL);
+        }, "audio_loop", CONFIG_AUDIO_LOOP_TASK_STACK_SIZE, this, 8, &audio_loop_task_handle_);
+#endif
+    }
+    
+#ifdef CONFIG_USE_AUDIO_CODEC_DECODE_OPUS
+#else
+    auto codec = Board::GetInstance().GetAudioCodec();
+    opus_decoder_ = std::make_unique<OpusDecoderWrapper>(codec->output_sample_rate(), 1, OPUS_FRAME_DURATION_MS);
+#endif
+}
+
+bool Application::DecoderIsRelease() { 
+    if(opus_decoder_) {
+        return false;
+    }
+    return true;
+}
 
 #if defined(CONFIG_VB6824_OTA_SUPPORT) && CONFIG_VB6824_OTA_SUPPORT == 1
 void Application::ShowOtaInfo(const std::string& code,const std::string& ip) {
