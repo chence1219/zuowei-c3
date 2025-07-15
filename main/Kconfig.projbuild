@@ -53,6 +53,8 @@ choice
         bool "English"
     config LANGUAGE_JA_JP
         bool "Japanese"
+    config LANGUAGE_VI_VN
+        bool "Vietnamese"
 endchoice
 
 config BOARD_PATH
