@@ -90,7 +90,6 @@ auto& application = Application::GetInstance();
     const int MAX_RETRY = 10;
     int retry_count = 0;
     int retry_delay = 10; // 初始重试延迟为10秒
-    int wait_cnt = 0;
     while (true) {
         if (!ota.CheckVersion()) {
             retry_count++;
