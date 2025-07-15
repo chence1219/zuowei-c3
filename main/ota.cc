@@ -19,12 +19,7 @@
 #include <sstream>
 #include <algorithm>
 
-#ifdef CONFIG_USE_BLUFI_NET_CONFIGURING
-#include "doit_blufi.h"
-#endif
-
 #define TAG "Ota"
-
 
 Ota::Ota() {
 #ifdef ESP_EFUSE_BLOCK_USR_DATA
@@ -46,14 +41,7 @@ Ota::~Ota() {
 
 std::string Ota::GetCheckVersionUrl() {
     Settings settings("wifi", false);
-#ifndef CONFIG_USE_BLUFI_NET_CONFIGURING
     std::string url = settings.GetString("ota_url");
-#else
-    // 如果使用blufi配网的话，需要从blufi_storage中获取
-    char ota_url[128];
-    blufi_storage_read_ota_url(ota_url);
-    std::string url = ota_url;
-#endif
     if (url.empty()) {
         url = CONFIG_OTA_URL;
     }

@@ -1,0 +1,10 @@
+menu "Blufi WifiCfg Configuration"
+
+    config BLUFI_WIFICFG_ENABLED
+        bool "blufi wificfg"
+        select BT_ENABLED
+        select BT_BLE_BLUFI_ENABLE
+        help
+            enable blufi wificfg
+
+endmenu

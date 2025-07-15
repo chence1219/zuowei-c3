@@ -19,13 +19,6 @@ config CUSTOM_OTA_VERSION_URL
     help
         The application will access this URL to check for updates.
 
-config USE_BLUFI_NET_CONFIGURING
-    depends on BT_NIMBLE_BLUFI_ENABLE
-    bool "使用blufi配网"
-    default n
-    help
-        使用blufi配网而不是ap配网
-
 config CONNECTION_FORCE_FIXED_WEBSOCKET
     bool "Force Fixed Websocket"
     default n
@@ -161,17 +154,32 @@ config SPEAKING_FIRST_MUTE_TIME
         讲话之前静音时间
 
 menu "wifi config mode"
-config WIFI_CONFIG_MODE_SSID_PREFIX
-    string "wifi config mode ssid prefix"
-    default "xiaozhi"
+    choice
+        prompt "Net Configuration"
+        default USE_SOFTAP_NET_CONFIGURING
+        help
+            Select net configuration
 
-config WIFI_CONFIG_MODE_AUTO_DELAY_RELEASE_DECODER_TIME
-    int "wifi config mode delay auto release decoder time"
-    default -1
+        config USE_SOFTAP_NET_CONFIGURING
+            bool "SoftAP"
+        config USE_BLUFI_NET_CONFIGURING
+            select BLUFI_WIFICFG_ENABLED
+            bool "Blufi"
+    endchoice
 
-config WIFI_CONFIG_MODE_FORMAT_DISPLAY
-    bool "wifi config mode format display"
-    default n
+    config WIFI_CONFIG_MODE_SSID_PREFIX
+        depends on USE_SOFTAP_NET_CONFIGURING
+        string "wifi config mode ssid prefix"
+        default "xiaozhi"
+
+    config WIFI_CONFIG_MODE_FORMAT_DISPLAY
+        depends on USE_SOFTAP_NET_CONFIGURING
+        bool "wifi config mode format display"
+        default n
+
+    config WIFI_CONFIG_MODE_AUTO_DELAY_RELEASE_DECODER_TIME
+        int "wifi config mode delay auto release decoder time"
+        default -1
 endmenu
 
 menu "ui"

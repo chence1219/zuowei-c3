@@ -96,6 +96,7 @@ public:
     void ReleaseDecoder();
     void CreateDecoder();
     bool DecoderIsRelease();
+    
 #if defined(CONFIG_VB6824_OTA_SUPPORT) && CONFIG_VB6824_OTA_SUPPORT == 1
     void ShowOtaInfo(const std::string& code, const std::string& ip="");
 #endif
