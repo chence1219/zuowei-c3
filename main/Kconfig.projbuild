@@ -155,33 +155,47 @@ config SPEAKING_FIRST_MUTE_TIME
     help
         讲话之前静音时间
 
-menu "wifi config mode"
-    choice
-        prompt "Net Configuration"
-        default USE_SOFTAP_NET_CONFIGURING
-        help
-            Select net configuration
+menu "wifi"
+    menu "wifi config mode"
+        choice
+            prompt "Net Configuration"
+            default USE_SOFTAP_NET_CONFIGURING
+            help
+                Select net configuration
 
-        config USE_SOFTAP_NET_CONFIGURING
-            bool "SoftAP"
-        config USE_BLUFI_NET_CONFIGURING
-            select BLUFI_WIFICFG_ENABLED
-            bool "Blufi"
-    endchoice
+            config USE_SOFTAP_NET_CONFIGURING
+                bool "SoftAP"
+            config USE_BLUFI_NET_CONFIGURING
+                select BLUFI_WIFICFG_ENABLED
+                bool "Blufi"
+        endchoice
 
-    config WIFI_CONFIG_MODE_SSID_PREFIX
-        depends on USE_SOFTAP_NET_CONFIGURING
-        string "wifi config mode ssid prefix"
-        default "xiaozhi"
+        config WIFI_CONFIG_MODE_SSID_PREFIX
+            depends on USE_SOFTAP_NET_CONFIGURING
+            string "wifi config mode ssid prefix"
+            default "xiaozhi"
 
-    config WIFI_CONFIG_MODE_FORMAT_DISPLAY
-        depends on USE_SOFTAP_NET_CONFIGURING
-        bool "wifi config mode format display"
+        config WIFI_CONFIG_MODE_FORMAT_DISPLAY
+            depends on USE_SOFTAP_NET_CONFIGURING
+            bool "wifi config mode format display"
+            default n
+
+        config WIFI_CONFIG_MODE_AUTO_DELAY_RELEASE_DECODER_TIME
+            int "wifi config mode delay auto release decoder time"
+            default -1
+    endmenu
+
+    config SLEEP_MODE_IGNORE_WIFI_STATUS
+        bool "sleep mode ignore wifi status"
         default n
+        help
+            进入休眠模式时是否忽略WiFi状态
 
-    config WIFI_CONFIG_MODE_AUTO_DELAY_RELEASE_DECODER_TIME
-        int "wifi config mode delay auto release decoder time"
-        default -1
+    config WIFI_WAIT_FOR_CONNECTED_TIME
+        int "wifi wait for connected time"
+        default 60
+        help
+            首次等待WiFi连接时间
 endmenu
 
 menu "ui"

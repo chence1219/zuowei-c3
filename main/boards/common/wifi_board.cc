@@ -206,8 +206,19 @@ void WifiBoard::StartNetwork() {
     });
     wifi_station.Start();
 
+#ifdef CONFIG_WIFI_WAIT_FOR_CONNECTED_TIME
+    // Try to connect to WiFi, if failed, launch the WiFi configuration AP
+    if(CONFIG_WIFI_WAIT_FOR_CONNECTED_TIME == -1){
+        while (true) {
+            if (wifi_station.WaitForConnected(60 * 1000)) {
+                break;
+            }
+        }
+    }else if (!wifi_station.WaitForConnected(CONFIG_WIFI_WAIT_FOR_CONNECTED_TIME * 1000)) {
+#else
     // Try to connect to WiFi, if failed, launch the WiFi configuration AP
     if (!wifi_station.WaitForConnected(60 * 1000)) {
+#endif
         wifi_station.Stop();
         wifi_config_mode_ = true;
         EnterWifiConfigMode();

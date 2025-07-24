@@ -1431,6 +1431,14 @@ void Application::WakeWordInvoke(const std::string& wake_word) {
 }
 
 bool Application::CanEnterSleepMode() {
+
+#ifdef CONFIG_SLEEP_MODE_IGNORE_WIFI_STATUS 
+    // Do not enter sleep mode if the device is in starting or wifi configuring state
+    if (device_state_ == kDeviceStateStarting || device_state_ == kDeviceStateWifiConfiguring) {
+        return true;
+    }
+#endif
+
     if (device_state_ != kDeviceStateIdle) {
         return false;
     }
