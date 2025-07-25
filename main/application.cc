@@ -420,7 +420,20 @@ void Application::Start() {
                         if (listening_mode_ == kListeningModeManualStop) {
                             SetDeviceState(kDeviceStateIdle);
                         } else {
-                            SetDeviceState(kDeviceStateListening);
+                            if (aborted_) {
+                                SetDeviceState(kDeviceStateListening);
+                            } else {
+                                Schedule([this]() {
+                                    bool wait = false;
+                                    if(!aborted_){
+                                        wait = true;
+                                        audio_service_.WaitForPlayCompletion(1000);
+                                    }
+                                    if(device_state_ == kDeviceStateSpeaking && (!wait || (wait && !aborted_))){
+                                        SetDeviceState(kDeviceStateListening);
+                                    }
+                                });
+                            }
                         }
                     }
                 });
