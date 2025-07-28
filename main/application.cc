@@ -499,7 +499,7 @@ void Application::Start() {
         xEventGroupSetBits(event_group_, MAIN_EVENT_ERROR);
     });
     protocol_->OnIncomingAudio([this](std::unique_ptr<AudioStreamPacket> packet) {
-        if (device_state_ == kDeviceStateSpeaking) {
+        if (device_state_ == kDeviceStateSpeaking && !aborted_) {
             audio_service_.PushPacketToDecodeQueue(std::move(packet));
         }
     });
@@ -786,8 +786,12 @@ void Application::OnWakeWordDetected() {
 
 void Application::AbortSpeaking(AbortReason reason) {
     ESP_LOGI(TAG, "Abort speaking");
-    aborted_ = true;
-    protocol_->SendAbortSpeaking(reason);
+    if (aborted_) {
+        SetDeviceState(kDeviceStateListening);
+    } else {
+        aborted_ = true;
+        protocol_->SendAbortSpeaking(reason);
+    }
 }
 
 void Application::SetListeningMode(ListeningMode mode) {
