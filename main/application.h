@@ -8,50 +8,28 @@
 
 #include <string>
 #include <mutex>
-#include <list>
+#include <deque>
 #include <vector>
-#include <condition_variable>
 #include <memory>
-
-#include <opus_encoder.h>
-#include <opus_decoder.h>
-#include <opus_resampler.h>
 
 #include "protocol.h"
 #include "ota.h"
 #include "custom_ota.h"
-#include "background_task.h"
-#include "audio_processor.h"
-#include "wake_word.h"
-#include "audio_debugger.h"
+#include "audio_service.h"
+#include "device_state_event.h"
 
-#define SCHEDULE_EVENT (1 << 0)
-#define SEND_AUDIO_EVENT (1 << 1)
-#define CHECK_NEW_VERSION_DONE_EVENT (1 << 2)
+#define MAIN_EVENT_SCHEDULE (1 << 0)
+#define MAIN_EVENT_SEND_AUDIO (1 << 1)
+#define MAIN_EVENT_WAKE_WORD_DETECTED (1 << 2)
+#define MAIN_EVENT_VAD_CHANGE (1 << 3)
+#define MAIN_EVENT_ERROR (1 << 4)
+#define MAIN_EVENT_CHECK_NEW_VERSION_DONE (1 << 5)
 
 enum AecMode {
     kAecOff,
     kAecOnDeviceSide,
     kAecOnServerSide,
 };
-
-enum DeviceState {
-    kDeviceStateUnknown,
-    kDeviceStateStarting,
-    kDeviceStateWifiConfiguring,
-    kDeviceStateIdle,
-    kDeviceStateConnecting,
-    kDeviceStateListening,
-    kDeviceStateSpeaking,
-    kDeviceStateUpgrading,
-    kDeviceStateActivating,
-    kDeviceStateAudioTesting,
-    kDeviceStateFatalError
-};
-
-#define OPUS_FRAME_DURATION_MS 60
-#define MAX_AUDIO_PACKETS_IN_QUEUE (2400 / OPUS_FRAME_DURATION_MS)
-#define AUDIO_TESTING_MAX_DURATION_MS 10000
 
 class Application {
 public:
@@ -66,7 +44,7 @@ public:
     void Start();
     void Close();
     DeviceState GetDeviceState() const { return device_state_; }
-    bool IsVoiceDetected() const { return voice_detected_; }
+    bool IsVoiceDetected() const { return audio_service_.IsVoiceDetected(); }
     void Schedule(std::function<void()> callback);
     void SetDeviceState(DeviceState state);
     void Alert(const char* status, const char* message, const char* emotion = "", const std::string_view& sound = "");
@@ -75,16 +53,14 @@ public:
     void ToggleChatState();
     void StartListening();
     void StopListening();
-    void UpdateIotStates();
     void Reboot();
     void WakeWordInvoke(const std::string& wake_word);
-    void PlaySound(const std::string_view& sound, bool reset_decoder = false);
     bool CanEnterSleepMode();
     void SendMcpMessage(const std::string& payload);
     void SetAecMode(AecMode mode, bool notification = true);
     AecMode GetAecMode() const { return aec_mode_; }
-    BackgroundTask* GetBackgroundTask() const { return background_task_; }
-    void SendChatText(const std::string& text);
+    void PlaySound(const std::string_view& sound, bool reset_decoder = false);
+    AudioService& GetAudioService() { return audio_service_; }
 
 #ifdef CONFIG_USE_CUSTOM_OTA
     CustomOta& GetCustomOta() {
@@ -93,78 +69,45 @@ public:
     }
     void StartCheckNewVersionForCustom();
 #endif
-    void ReleaseDecoder();
-    void CreateDecoder();
-    bool DecoderIsRelease();
-    
+
+    void DeInitAudioService();
+    void InitAudioService();
+    bool AudioServiceIsInit();
 #if defined(CONFIG_VB6824_OTA_SUPPORT) && CONFIG_VB6824_OTA_SUPPORT == 1
     void ShowOtaInfo(const std::string& code, const std::string& ip="");
 #endif
-
+    
+    void PlayHere(void);
     void StartListeningAndPlayHere(void);
+
+    void SendChatText(const std::string &text);
 
 private:
     Application();
     ~Application();
 
-    std::unique_ptr<WakeWord> wake_word_;
-    std::unique_ptr<AudioProcessor> audio_processor_;
-    std::unique_ptr<AudioDebugger> audio_debugger_;
     std::mutex mutex_;
-    std::list<std::function<void()>> main_tasks_;
+    std::deque<std::function<void()>> main_tasks_;
     std::unique_ptr<Protocol> protocol_;
     EventGroupHandle_t event_group_ = nullptr;
     esp_timer_handle_t clock_timer_handle_ = nullptr;
     volatile DeviceState device_state_ = kDeviceStateUnknown;
     ListeningMode listening_mode_ = kListeningModeAutoStop;
     AecMode aec_mode_ = kAecOff;
+    std::string last_error_message_;
+    AudioService audio_service_;
 
     bool has_server_time_ = false;
     bool aborted_ = false;
-    bool voice_detected_ = false;
-    bool busy_decoding_audio_ = false;
     int clock_ticks_ = 0;
     TaskHandle_t check_new_version_task_handle_ = nullptr;
-
-    // Audio encode / decode
-    TaskHandle_t audio_loop_task_handle_ = nullptr;
-    BackgroundTask* background_task_ = nullptr;
-    std::chrono::steady_clock::time_point last_output_time_;
-    std::list<AudioStreamPacket> audio_send_queue_;
-    std::list<AudioStreamPacket> audio_decode_queue_;
-    std::condition_variable audio_decode_cv_;
-    std::list<AudioStreamPacket> audio_testing_queue_;
-
-    // 新增：用于维护音频包的timestamp队列
-    std::list<uint32_t> timestamp_queue_;
-    std::mutex timestamp_mutex_;
-
-    std::unique_ptr<OpusEncoderWrapper> opus_encoder_;
-    std::unique_ptr<OpusDecoderWrapper> opus_decoder_;
-
-    OpusResampler input_resampler_;
-    OpusResampler reference_resampler_;
-    OpusResampler output_resampler_;
 
 #ifdef CONFIG_USE_CUSTOM_OTA
     bool custom_ota_task_is_start = false;
 #endif
 
-    const std::string_view *curr_play_sound_ = nullptr;
-
     void MainEventLoop();
-    void OnAudioInput();
-    void OnAudioOutput();
-    bool ReadAudio(std::vector<int16_t>& data, int sample_rate, int samples);
-#ifdef CONFIG_USE_AUDIO_CODEC_ENCODE_OPUS
-    bool ReadAudio(std::vector<uint8_t>& opus, int sample_rate, int samples);
-#endif
-    void WriteAudio(std::vector<int16_t>& data, int sample_rate);
-#ifdef CONFIG_USE_AUDIO_CODEC_DECODE_OPUS
-    void WriteAudio(std::vector<uint8_t>& opus, int sample_rate);
-#endif
-    void ResetDecoder();
-    void SetDecodeSampleRate(int sample_rate, int frame_duration);
+    void OnWakeWordDetected();
     void CheckNewVersion(Ota& ota);
     void ShowActivationCode(const std::string& code, const std::string& message);
 #ifdef CONFIG_USE_CUSTOM_OTA
@@ -172,11 +115,6 @@ private:
 #endif
     void OnClockTimer();
     void SetListeningMode(ListeningMode mode);
-    void AudioLoop();
-    void PushMuteAudio(int mute_time);
-    void PlayHere(void);
-    void EnterAudioTestingMode();
-    void ExitAudioTestingMode();
 };
 
 #endif // _APPLICATION_H_

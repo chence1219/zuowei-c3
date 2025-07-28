@@ -9,17 +9,13 @@
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <esp_http.h>
-#include <esp_mqtt.h>
-#include <esp_udp.h>
-#include <tcp_transport.h>
-#include <tls_transport.h>
-#include <web_socket.h>
+#include <esp_network.h>
 #include <esp_log.h>
 
 #include <wifi_station.h>
 #include <wifi_configuration_ap.h>
 #include <ssid_manager.h>
+#include "afsk_demod.h"
 
 #ifdef CONFIG_USE_BLUFI_NET_CONFIGURING
 #include "esp_mac.h"
@@ -51,7 +47,7 @@ auto& application = Application::GetInstance();
 #ifdef CONFIG_WIFI_CONFIG_MODE_AUTO_DELAY_RELEASE_DECODER_TIME
     if(CONFIG_WIFI_CONFIG_MODE_AUTO_DELAY_RELEASE_DECODER_TIME != -1){
         vTaskDelay(pdMS_TO_TICKS(CONFIG_WIFI_CONFIG_MODE_AUTO_DELAY_RELEASE_DECODER_TIME));
-        application.ReleaseDecoder();
+        application.DeInitAudioService();
     }
 #endif
 
@@ -156,9 +152,13 @@ auto& application = Application::GetInstance();
 #ifdef CONFIG_WIFI_CONFIG_MODE_AUTO_DELAY_RELEASE_DECODER_TIME
     if(CONFIG_WIFI_CONFIG_MODE_AUTO_DELAY_RELEASE_DECODER_TIME != -1){
         vTaskDelay(pdMS_TO_TICKS(CONFIG_WIFI_CONFIG_MODE_AUTO_DELAY_RELEASE_DECODER_TIME));
-        application.ReleaseDecoder();
+        application.DeInitAudioService();
     }
 #endif
+
+    #if CONFIG_USE_ACOUSTIC_WIFI_PROVISIONING
+    audio_wifi_config::ReceiveWifiCredentialsFromAudio(&application, &wifi_ap);
+    #endif
     
     // Wait forever until reset after configuration
     while (true) {
@@ -226,31 +226,9 @@ void WifiBoard::StartNetwork() {
     }
 }
 
-Http* WifiBoard::CreateHttp() {
-    return new EspHttp();
-}
-
-WebSocket* WifiBoard::CreateWebSocket() {
-#ifdef CONFIG_CONNECTION_FORCE_FIXED_WEBSOCKET
-    std::string url = CONFIG_WEBSOCKET_URL;
-#else
-    Settings settings("websocket", false);
-    std::string url = settings.GetString("url");
-#endif
-    if (url.find("wss://") == 0) {
-        return new WebSocket(new TlsTransport());
-    } else {
-        return new WebSocket(new TcpTransport());
-    }
-    return nullptr;
-}
-
-Mqtt* WifiBoard::CreateMqtt() {
-    return new EspMqtt();
-}
-
-Udp* WifiBoard::CreateUdp() {
-    return new EspUdp();
+NetworkInterface* WifiBoard::GetNetwork() {
+    static EspNetwork network;
+    return &network;
 }
 
 const char* WifiBoard::GetNetworkStateIcon() {
@@ -274,15 +252,17 @@ const char* WifiBoard::GetNetworkStateIcon() {
 std::string WifiBoard::GetBoardJson() {
     // Set the board type for OTA
     auto& wifi_station = WifiStation::GetInstance();
-    std::string board_json = std::string("{\"type\":\"" BOARD_TYPE "\",");
-    board_json += "\"name\":\"" BOARD_NAME "\",";
+    std::string board_json = R"({)";
+    board_json += R"("type":")" + std::string(BOARD_TYPE) + R"(",)";
+    board_json += R"("name":")" + std::string(BOARD_NAME) + R"(",)";
     if (!wifi_config_mode_) {
-        board_json += "\"ssid\":\"" + wifi_station.GetSsid() + "\",";
-        board_json += "\"rssi\":" + std::to_string(wifi_station.GetRssi()) + ",";
-        board_json += "\"channel\":" + std::to_string(wifi_station.GetChannel()) + ",";
-        board_json += "\"ip\":\"" + wifi_station.GetIpAddress() + "\",";
+        board_json += R"("ssid":")" + wifi_station.GetSsid() + R"(",)";
+        board_json += R"("rssi":)" + std::to_string(wifi_station.GetRssi()) + R"(,)";
+        board_json += R"("channel":)" + std::to_string(wifi_station.GetChannel()) + R"(,)";
+        board_json += R"("ip":")" + wifi_station.GetIpAddress() + R"(",)";
     }
-    board_json += "\"mac\":\"" + SystemInfo::GetMacAddress() + "\"}";
+    board_json += R"("mac":")" + SystemInfo::GetMacAddress() + R"(")";
+    board_json += R"(})";
     return board_json;
 }
 

@@ -1,10 +1,13 @@
-set(SOURCES "audio_codecs/audio_codec.cc"
-            "audio_codecs/no_audio_codec.cc"
-            "audio_codecs/box_audio_codec.cc"
-            "audio_codecs/es8311_audio_codec.cc"
-            "audio_codecs/es8374_audio_codec.cc"
-            "audio_codecs/es8388_audio_codec.cc"
-            "audio_processing/audio_debugger.cc"
+set(SOURCES "audio/audio_codec.cc"
+            "audio/audio_service.cc"
+            "audio/codecs/no_audio_codec.cc"
+            "audio/codecs/box_audio_codec.cc"
+            "audio/codecs/es8311_audio_codec.cc"
+            "audio/codecs/es8374_audio_codec.cc"
+            "audio/codecs/es8388_audio_codec.cc"
+            "audio/codecs/es8389_audio_codec.cc"
+            "audio/codecs/dummy_audio_codec.cc"
+            "audio/processors/audio_debugger.cc"
             "led/single_led.cc"
             "led/circular_strip.cc"
             "led/gpio_led.cc"
@@ -14,23 +17,17 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "protocols/protocol.cc"
             "protocols/mqtt_protocol.cc"
             "protocols/websocket_protocol.cc"
-            "iot/thing.cc"
-            "iot/thing_manager.cc"
             "mcp_server.cc"
             "system_info.cc"
             "application.cc"
             "ota.cc"
             "custom_ota.cc"
             "settings.cc"
-            "background_task.cc"
+            "device_state_event.cc"
             "main.cc"
             )
 
-set(INCLUDE_DIRS "." "display" "audio_codecs" "protocols" "audio_processing")
-
-# 添加 IOT 相关文件
-file(GLOB IOT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/iot/things/*.cc)
-list(APPEND SOURCES ${IOT_SOURCES})
+set(INCLUDE_DIRS "." "display" "audio" "protocols")
 
 # 添加板级公共文件
 file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)
@@ -56,16 +53,16 @@ endif()
 endif()
 
 if(CONFIG_USE_AUDIO_PROCESSOR)
-    list(APPEND SOURCES "audio_processing/afe_audio_processor.cc")
+    list(APPEND SOURCES "audio/processors/afe_audio_processor.cc")
 else()
-    list(APPEND SOURCES "audio_processing/no_audio_processor.cc")
+    list(APPEND SOURCES "audio/processors/no_audio_processor.cc")
 endif()
 if(CONFIG_USE_AFE_WAKE_WORD)
-    list(APPEND SOURCES "audio_processing/afe_wake_word.cc")
+    list(APPEND SOURCES "audio/wake_words/afe_wake_word.cc")
 elseif(CONFIG_USE_ESP_WAKE_WORD)
-    list(APPEND SOURCES "audio_processing/esp_wake_word.cc")
-else()
-    list(APPEND SOURCES "audio_processing/no_wake_word.cc")
+    list(APPEND SOURCES "audio/wake_words/esp_wake_word.cc")
+elseif(CONFIG_USE_CUSTOM_WAKE_WORD)
+    list(APPEND SOURCES "audio/wake_words/custom_wake_word.cc")
 endif()
 
 # 根据Kconfig选择语言目录
@@ -125,14 +122,15 @@ if(NOT CONFIG_ASSETS_FIX_PATH STREQUAL "")
     list(APPEND INCLUDE_DIRS ${CONFIG_ASSETS_FIX_PATH}/..)
 endif()
 
-list(APPEND SOURCES "audio_codecs/vb6824_audio_codec.cc")
+list(APPEND SOURCES "audio/codecs/vb6824_audio_codec.cc")
 if(CONFIG_USE_AUDIO_CODEC_ENCODE_OPUS OR CONFIG_USE_AUDIO_CODEC_DECODE_OPUS)
-list(REMOVE_ITEM SOURCES "audio_codecs/box_audio_codec.cc"
-                        "audio_codecs/no_audio_codec.cc"
-                        "audio_codecs/box_audio_codec.cc"
-                        "audio_codecs/es8311_audio_codec.cc"
-                        "audio_codecs/es8374_audio_codec.cc"
-                        "audio_codecs/es8388_audio_codec.cc")
+list(REMOVE_ITEM SOURCES "audio/codecs/box_audio_codec.cc"
+                        "audio/codecs/no_audio_codec.cc"
+                        "audio/codecs/box_audio_codec.cc"
+                        "audio/codecs/es8311_audio_codec.cc"
+                        "audio/codecs/es8374_audio_codec.cc"
+                        "audio/codecs/es8388_audio_codec.cc"
+                        "audio/codecs/es8389_audio_codec.cc")
 endif()
 
 idf_component_register(SRCS ${SOURCES}
