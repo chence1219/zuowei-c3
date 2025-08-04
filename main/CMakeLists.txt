@@ -76,6 +76,8 @@ elseif(CONFIG_LANGUAGE_JA_JP)
     set(LANG_DIR "ja-JP")
 elseif(CONFIG_LANGUAGE_VI_VN)
     set(LANG_DIR "vi-VN")
+elseif(CONFIG_LANGUAGE_ID_ID)
+    set(LANG_DIR "id-ID")
 endif()
 
 # 定义生成路径

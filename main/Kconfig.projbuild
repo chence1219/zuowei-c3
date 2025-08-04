@@ -55,6 +55,8 @@ choice
         bool "Japanese"
     config LANGUAGE_VI_VN
         bool "Vietnamese"
+    config LANGUAGE_ID_ID
+        bool "Indonesian"
 endchoice
 
 config BOARD_PATH
