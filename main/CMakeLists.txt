@@ -78,6 +78,8 @@ elseif(CONFIG_LANGUAGE_VI_VN)
     set(LANG_DIR "vi-VN")
 elseif(CONFIG_LANGUAGE_ID_ID)
     set(LANG_DIR "id-ID")
+elseif(CONFIG_LANGUAGE_AR_SA)
+    set(LANG_DIR "ar-SA")
 endif()
 
 # 定义生成路径
