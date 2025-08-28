@@ -2,8 +2,11 @@
 
 #include <string.h>
 
+#include "FreeRTOSConfig.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "freertos/projdefs.h"
+#include "portmacro.h"
 #include "vb_ota.h"
 
 #include "freertos/FreeRTOS.h"
@@ -38,7 +41,7 @@ static const char *TAG = "vb6824";
 #endif
 
 #define UART_QUEUE_SIZE         16
-#define UART_RX_BUFFER_SIZE     AUDIO_SEND_CHENK_LEN*10
+#define UART_RX_BUFFER_SIZE     AUDIO_SEND_CHENK_LEN*20
 #define UART_TX_BUFFER_SIZE     AUDIO_SEND_CHENK_LEN*10
 
 #define FRAME_MIN_LIN     (7)
@@ -280,7 +283,7 @@ void __uart_init(gpio_num_t tx, gpio_num_t rx){
     uart_param_config(UART_NUM, &uart_config);
     uart_set_pin(UART_NUM, tx, rx, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
 
-    xTaskCreate(__uart_task, "__uart_task", CONFIG_VB6824_UART_TASK_STACK_SIZE, NULL, 9, NULL);
+    xTaskCreate(__uart_task, "__uart_task", CONFIG_VB6824_UART_TASK_STACK_SIZE, NULL, configMAX_PRIORITIES-2, NULL);
 }
 
 #ifdef CONFIG_VB6824_SEND_USE_TASK
@@ -707,7 +710,7 @@ void vb6824_init(gpio_num_t tx, gpio_num_t rx){
     }
 
 #ifdef CONFIG_VB6824_SEND_USE_TASK
-    xTaskCreate(__send_task, "__send_task", CONFIG_VB6824_SEND_TASK_STACK_SIZE, NULL, 9, NULL);
+    xTaskCreate(__send_task, "__send_task", CONFIG_VB6824_SEND_TASK_STACK_SIZE, NULL, configMAX_PRIORITIES-2, NULL);
 #else
     esp_timer_handle_t send_timer = NULL;
     esp_timer_create_args_t timer_args = {

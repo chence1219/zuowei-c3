@@ -42,6 +42,7 @@ public:
     Application& operator=(const Application&) = delete;
 
     void Start();
+    void MainEventLoop();
     void Close();
     DeviceState GetDeviceState() const { return device_state_; }
     bool IsVoiceDetected() const { return audio_service_.IsVoiceDetected(); }
@@ -59,7 +60,7 @@ public:
     void SendMcpMessage(const std::string& payload);
     void SetAecMode(AecMode mode, bool notification = true);
     AecMode GetAecMode() const { return aec_mode_; }
-    void PlaySound(const std::string_view& sound, bool reset_decoder = false);
+    void PlaySound(const std::string_view& ogg);
     AudioService& GetAudioService() { return audio_service_; }
 
 #ifdef CONFIG_USE_CUSTOM_OTA
@@ -106,7 +107,6 @@ private:
     bool custom_ota_task_is_start = false;
 #endif
 
-    void MainEventLoop();
     void OnWakeWordDetected();
     void CheckNewVersion(Ota& ota);
     void ShowActivationCode(const std::string& code, const std::string& message);

@@ -108,7 +108,7 @@ public:
 
     bool PushPacketToDecodeQueue(std::unique_ptr<AudioStreamPacket> packet, bool wait = false);
     std::unique_ptr<AudioStreamPacket> PopPacketFromSendQueue();
-    void PlaySound(const std::string_view& sound, bool reset_decoder = false);
+    void PlaySound(const std::string_view& ogg);
     bool ReadAudioData(std::vector<int16_t>& data, int sample_rate, int samples);
 #ifdef CONFIG_USE_AUDIO_CODEC_ENCODE_OPUS
     bool ReadAudioData(std::vector<uint8_t>& data, int sample_rate, int samples);
@@ -144,10 +144,8 @@ private:
     std::deque<std::unique_ptr<AudioStreamPacket>> audio_testing_queue_;
     std::deque<std::unique_ptr<AudioTask>> audio_encode_queue_;
     std::deque<std::unique_ptr<AudioTask>> audio_playback_queue_;
-
     // For server AEC
     std::deque<uint32_t> timestamp_queue_;
-    std::mutex timestamp_mutex_;
 
     bool wake_word_initialized_ = false;
     bool audio_processor_initialized_ = false;

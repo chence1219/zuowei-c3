@@ -74,9 +74,46 @@ elseif(CONFIG_LANGUAGE_EN_US)
     set(LANG_DIR "en-US")
 elseif(CONFIG_LANGUAGE_JA_JP)
     set(LANG_DIR "ja-JP")
+elseif(CONFIG_LANGUAGE_KO_KR)
+    set(LANG_DIR "ko-KR")
 elseif(CONFIG_LANGUAGE_VI_VN)
     set(LANG_DIR "vi-VN")
+elseif(CONFIG_LANGUAGE_TH_TH)
+    set(LANG_DIR "th-TH")
+elseif(CONFIG_LANGUAGE_DE_DE)
+    set(LANG_DIR "de-DE")
+elseif(CONFIG_LANGUAGE_FR_FR)
+    set(LANG_DIR "fr-FR")
+elseif(CONFIG_LANGUAGE_ES_ES)
+    set(LANG_DIR "es-ES")
+elseif(CONFIG_LANGUAGE_IT_IT)
+    set(LANG_DIR "it-IT")
+elseif(CONFIG_LANGUAGE_RU_RU)
+    set(LANG_DIR "ru-RU")
+elseif(CONFIG_LANGUAGE_AR_SA)
+    set(LANG_DIR "ar-SA")
+elseif(CONFIG_LANGUAGE_HI_IN)
+    set(LANG_DIR "hi-IN")
+elseif(CONFIG_LANGUAGE_PT_PT)
+    set(LANG_DIR "pt-PT")
+elseif(CONFIG_LANGUAGE_PL_PL)
+    set(LANG_DIR "pl-PL")
+elseif(CONFIG_LANGUAGE_CS_CZ)
+    set(LANG_DIR "cs-CZ")
+elseif(CONFIG_LANGUAGE_FI_FI)
+    set(LANG_DIR "fi-FI")
+elseif(CONFIG_LANGUAGE_TR_TR)
+    set(LANG_DIR "tr-TR")
+elseif(CONFIG_LANGUAGE_ID_ID)
+    set(LANG_DIR "id-ID")
+elseif(CONFIG_LANGUAGE_UK_UA)
+    set(LANG_DIR "uk-UA")
+elseif(CONFIG_LANGUAGE_RO_RO)
+    set(LANG_DIR "ro-RO")
 endif()
+
+
+
 
 # 定义生成路径
 if(NOT CONFIG_ASSETS_PATH)
@@ -84,15 +121,16 @@ if(NOT CONFIG_ASSETS_PATH)
 else()
     list(APPEND INCLUDE_DIRS ${CONFIG_ASSETS_PATH}/..)
 endif()
-set(LANG_JSON "${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_ASSETS_PATH}/${LANG_DIR}/language.json")
+
+set(LANG_JSON "${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_ASSETS_PATH}/locales/${LANG_DIR}/language.json")
 set(LANG_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_ASSETS_PATH}/lang_config.h")
-file(GLOB LANG_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_ASSETS_PATH}/${LANG_DIR}/*.p3)
-file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_ASSETS_PATH}/common/*.p3)
+file(GLOB LANG_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_ASSETS_PATH}/locales/${LANG_DIR}/*.ogg)
+file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_ASSETS_PATH}/common/*.ogg)
 
 if(NOT CONFIG_ASSETS_FIX_PATH STREQUAL "")
     set(FIX_LANG_JSON "${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_ASSETS_FIX_PATH}/${LANG_DIR}/language.json")
-    file(GLOB FIX_LANG_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_ASSETS_FIX_PATH}/${LANG_DIR}/*.p3)
-    file(GLOB FIX_COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_ASSETS_FIX_PATH}/common/*.p3)
+    file(GLOB FIX_LANG_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_ASSETS_FIX_PATH}/${LANG_DIR}/*.ogg)
+    file(GLOB FIX_COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_ASSETS_FIX_PATH}/common/*.ogg)
 
     foreach(fix_sound ${FIX_LANG_SOUNDS})
         get_filename_component(fix_sound_name ${fix_sound} NAME)
@@ -165,7 +203,7 @@ else()
 add_custom_command(
     OUTPUT ${LANG_HEADER}
     COMMAND python ${PROJECT_DIR}/scripts/gen_lang.py
-            --input "${LANG_JSON}"
+            --language "${LANG_DIR}"
             --output "${LANG_HEADER}"
     DEPENDS
         ${LANG_JSON}
@@ -219,5 +257,26 @@ spiffs_create_partition_assets(
     ${SPIFFS_DIR}
     FLASH_IN_PROJECT
     MMAP_FILE_SUPPORT_FORMAT ".aaf"
+)
+endif()
+
+if(CONFIG_BOARD_TYPE_ECHOEAR)
+
+idf_build_get_property(build_components BUILD_COMPONENTS)
+foreach(COMPONENT ${build_components})
+    if(COMPONENT MATCHES "esp_emote_gfx" OR COMPONENT MATCHES "espressif2022__esp_emote_gfx")
+        set(EMOTE_GFX_COMPONENT ${COMPONENT})
+        idf_component_get_property(EMOTE_GFX_COMPONENT_PATH ${EMOTE_GFX_COMPONENT} COMPONENT_DIR)
+        set(SPIFFS_DIR "${EMOTE_GFX_COMPONENT_PATH}/emoji_normal")
+        break()
+    endif()
+endforeach()
+
+spiffs_create_partition_assets(
+    assets_A
+    ${SPIFFS_DIR}
+    FLASH_IN_PROJECT
+    MMAP_FILE_SUPPORT_FORMAT ".aaf, ttf, bin"
+    IMPORT_INC_PATH ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}
 )
 endif()
