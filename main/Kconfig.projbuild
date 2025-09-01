@@ -170,6 +170,12 @@ config USE_DEVICE_AEC
     default n
     help
         因为性能不够，不建议和微信聊天界面风格同时开启
+config DEVICE_AEC_DEFAULT_OFF
+    bool "Device-Side AEC default off"
+    default y
+    depends on USE_DEVICE_AEC
+    help 
+        是否默认开启实时打断模式（默认关闭实时打断）
 
 config USE_SERVER_AEC
     bool "Enable Server-Side AEC (Unstable)"
