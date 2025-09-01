@@ -60,6 +60,7 @@ def generate_header(input_path, input_fix_path, output_path):
     lang_code = os.path.basename(lang_dir)  # zh-CN
     locales_dir = os.path.dirname(lang_dir)  # assets/locales
     assets_dir = os.path.dirname(locales_dir)  # assets
+    input_fix_dir = os.path.dirname(os.path.dirname(input_fix_path))
     
     print(f"Processing language: {lang_code}")
     print(f"Input file path: {input_path}")
@@ -109,11 +110,13 @@ def generate_header(input_path, input_fix_path, output_path):
     current_lang_dir = os.path.join(assets_dir, 'locales', lang_code)
     base_lang_dir = os.path.join(assets_dir, 'locales', 'en-US')
     common_dir = os.path.join(assets_dir, 'common')
+    common_dir_fix = os.path.join(input_fix_dir, 'common')
     
     # 获取所有可能的音效文件
     base_sounds = get_sound_files(base_lang_dir)
     current_sounds = get_sound_files(current_lang_dir)
     common_sounds = get_sound_files(common_dir)
+    common_sounds_fix = get_sound_files(common_dir_fix)
     
     # 处理 input_fix 目录中的额外音效文件
     input_fix_sounds = []
@@ -126,6 +129,8 @@ def generate_header(input_path, input_fix_path, output_path):
     all_sound_files = set(base_sounds)
     all_sound_files.update(current_sounds)
     all_sound_files.update(input_fix_sounds)  # 添加 input-fix 中的音效文件
+    common_sounds_files = set(common_sounds)
+    common_sounds_files.update(common_sounds_fix)  # 添加 input-fix 中的公共音效文件
     
     # 音效统计信息
     base_sound_count = len(base_sounds)
@@ -160,7 +165,7 @@ def generate_header(input_path, input_fix_path, output_path):
         }};''')
     
     # 生成公共音效常量
-    for file in sorted(common_sounds):
+    for file in sorted(common_sounds_files):
         base_name = os.path.splitext(file)[0]
         sounds.append(f'''
         extern const char ogg_{base_name}_start[] asm("_binary_{base_name}_ogg_start");
