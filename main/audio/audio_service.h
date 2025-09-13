@@ -11,6 +11,7 @@
 #include <freertos/task.h>
 #include <freertos/event_groups.h>
 #include <esp_timer.h>
+#include <model_path.h>
 
 #include <opus_encoder.h>
 #include <opus_decoder.h>
@@ -113,6 +114,7 @@ public:
     bool ReadAudioData(std::vector<uint8_t>& data, int sample_rate, int samples);
 #endif
     void ResetDecoder();
+    void SetModelsList(srmodel_list_t* models_list);
 
     std::unique_ptr<AudioStreamPacket> GetMutePacket();
     void PushMuteAudio(int mute_time);
@@ -129,6 +131,7 @@ private:
     OpusResampler reference_resampler_;
     OpusResampler output_resampler_;
     DebugStatistics debug_statistics_;
+    srmodel_list_t* models_list_ = nullptr;
 
     EventGroupHandle_t event_group_;
 
@@ -143,10 +146,8 @@ private:
     std::deque<std::unique_ptr<AudioStreamPacket>> audio_testing_queue_;
     std::deque<std::unique_ptr<AudioTask>> audio_encode_queue_;
     std::deque<std::unique_ptr<AudioTask>> audio_playback_queue_;
-
     // For server AEC
     std::deque<uint32_t> timestamp_queue_;
-    std::mutex timestamp_mutex_;
 
     bool wake_word_initialized_ = false;
     bool audio_processor_initialized_ = false;

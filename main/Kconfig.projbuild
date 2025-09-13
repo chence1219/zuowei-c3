@@ -6,6 +6,27 @@ config OTA_URL
     help
         The application will access this URL to check for new firmwares and server address.
 
+choice
+    prompt "Flash Assets"
+    default FLASH_NONE_ASSETS
+    help
+        Select the assets to flash.
+
+    config FLASH_NONE_ASSETS
+        bool "Do not flash assets"
+    config FLASH_DEFAULT_ASSETS
+        bool "Flash Default Assets"
+    config FLASH_CUSTOM_ASSETS
+        bool "Flash Custom Assets"
+endchoice
+
+config CUSTOM_ASSETS_FILE
+    depends on FLASH_CUSTOM_ASSETS
+    string "Custom Assets File"
+    default "assets.bin"
+    help
+        The custom assets file to flash.
+        It can be a local file relative to the project directory or a remote url.
 
 choice
     prompt "Default Language"
@@ -21,6 +42,42 @@ choice
         bool "English"
     config LANGUAGE_JA_JP
         bool "Japanese"
+    config LANGUAGE_KO_KR
+        bool "Korean"
+    config LANGUAGE_VI_VN
+        bool "Vietnamese"
+    config LANGUAGE_TH_TH
+        bool "Thai"
+    config LANGUAGE_DE_DE
+        bool "German"
+    config LANGUAGE_FR_FR
+        bool "French"
+    config LANGUAGE_ES_ES
+        bool "Spanish"
+    config LANGUAGE_IT_IT
+        bool "Italian"
+    config LANGUAGE_RU_RU
+        bool "Russian"
+    config LANGUAGE_AR_SA
+        bool "Arabic"
+    config LANGUAGE_HI_IN
+        bool "Hindi"
+    config LANGUAGE_PT_PT
+        bool "Portuguese"
+    config LANGUAGE_PL_PL
+        bool "Polish"
+    config LANGUAGE_CS_CZ
+        bool "Czech"
+    config LANGUAGE_FI_FI
+        bool "Finnish"
+    config LANGUAGE_TR_TR
+        bool "Turkish"
+    config LANGUAGE_ID_ID
+        bool "Indonesian"
+    config LANGUAGE_UK_UA
+        bool "Ukrainian"
+    config LANGUAGE_RO_RO
+        bool "Romanian"
 endchoice
 
 choice BOARD_TYPE
@@ -142,9 +199,15 @@ choice BOARD_TYPE
     config BOARD_TYPE_ATOMS3R_CAM_M12_ECHO_BASE
         bool "AtomS3R CAM/M12 + Echo Base"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_ATOM_ECHOS3R
+        bool "AtomEchoS3R"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ATOMMATRIX_ECHO_BASE
         bool "AtomMatrix + Echo Base"
         depends on IDF_TARGET_ESP32
+    config BOARD_TYPE_ESP32S3_AUDIO_BOARD
+        bool "Waveshare ESP32-S3-Audio-Board"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
         depends on IDF_TARGET_ESP32S3
@@ -267,6 +330,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP_S3_LCD_EV_Board
         bool "乐鑫ESP S3 LCD EV Board开发板"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_ESP_S3_LCD_EV_Board_2
+        bool "乐鑫ESP S3 LCD EV Board 2开发板"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ZHENGCHEN_1_54TFT_WIFI
         bool "征辰科技1.54(WIFI)"
         depends on IDF_TARGET_ESP32S3
@@ -304,6 +370,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_SURFER_C3_1_14TFT
         bool "Surfer-C3-1-14TFT"
         depends on IDF_TARGET_ESP32C3
+    config BOARD_TYPE_YUNLIAO_S3
+        bool "小智云聊-S3"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_DOIT_AI_01_KIT
         bool "Doit-AI-01-Kit"
     config BOARD_TYPE_DOIT_AI_01_KIT_LCD
@@ -391,13 +460,25 @@ endchoice
 choice DISPLAY_ESP32S3_KORVO2_V3
     depends on BOARD_TYPE_ESP32S3_KORVO2_V3
     prompt "ESP32S3_KORVO2_V3 LCD Type"
-    default LCD_ST7789
+    default ESP32S3_KORVO2_V3_LCD_ST7789
     help
         屏幕类型选择
-    config LCD_ST7789
+    config ESP32S3_KORVO2_V3_LCD_ST7789
         bool "ST7789, 分辨率240*280"
-    config LCD_ILI9341
+    config ESP32S3_KORVO2_V3_LCD_ILI9341
         bool "ILI9341, 分辨率240*320"
+endchoice
+
+choice DISPLAY_ESP32S3_AUDIO_BOARD
+    depends on BOARD_TYPE_ESP32S3_AUDIO_BOARD
+    prompt "ESP32S3_AUDIO_BOARD LCD Type"
+    default AUDIO_BOARD_LCD_JD9853
+    help
+        屏幕类型选择
+    config AUDIO_BOARD_LCD_JD9853
+        bool "JD9853, 分辨率320*172"
+    config AUDIO_BOARD_LCD_ST7789
+        bool "ST7789, 分辨率240*320"
 endchoice
 
 choice
@@ -442,19 +523,26 @@ config USE_CUSTOM_WAKE_WORD
         
 config CUSTOM_WAKE_WORD
     string "Custom Wake Word"
-    default "ni hao xiao zhi"
+    default "xiao tu dou"
     depends on USE_CUSTOM_WAKE_WORD
     help
-        自定义唤醒词，用汉语拼音表示
+        自定义唤醒词，中文用拼音表示，每个字之间用空格隔开
 
 config CUSTOM_WAKE_WORD_DISPLAY
     string "Custom Wake Word Display"
-    default "你好小智"
+    default "小土豆"
     depends on USE_CUSTOM_WAKE_WORD
     help
-        自定义唤醒词对应问候语 
-               
-        
+        唤醒后发送给服务器的问候语 
+
+config CUSTOM_WAKE_WORD_THRESHOLD
+    int "Custom Wake Word Threshold (%)"
+    default 20
+    range 1 99
+    depends on USE_CUSTOM_WAKE_WORD
+    help
+        自定义唤醒词阈值，范围1-99，越小越敏感，默认10
+
 config USE_AUDIO_PROCESSOR
     bool "Enable Audio Noise Reduction"
     default y

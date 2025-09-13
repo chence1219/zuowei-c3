@@ -11,7 +11,6 @@
 #include <esp_lcd_panel_vendor.h>
 #include <driver/spi_common.h>
 
-#include "font_awesome_symbols.h"
 #include "settings.h"
 
 #include <wifi_station.h>
@@ -22,8 +21,6 @@
 
 #define TAG "CustomBoard"
 
-LV_FONT_DECLARE(font_puhui_14_1);
-LV_FONT_DECLARE(font_awesome_14_1);
 
 class CustomBoard : public WifiBoard {
 private:
@@ -98,12 +95,7 @@ private:
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         display = new SpiLcdDisplay(panel_io, panel,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_14_1,
-                                        .icon_font = &font_awesome_14_1,
-                                        .emoji_font = DISPLAY_HEIGHT >= 240 ? font_emoji_64_init() : font_emoji_32_init(),
-                                    });
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
 public:
@@ -157,7 +149,7 @@ public:
         hint += "\n\n";
         
         // 播报配置 WiFi 的提示
-        application.Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "", Lang::Sounds::P3_WIFICONFIG);
+        application.Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "", Lang::Sounds::OGG_WIFICONFIG);
 
         vTaskDelay(pdMS_TO_TICKS(3500));
 
