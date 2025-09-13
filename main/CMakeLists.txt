@@ -1,3 +1,39 @@
+# Define default assets files (Absolute url starting with http or https is supported)
+set(ASSETS_URL_PREFIX "https://files.xiaozhi.me/assets/default/")
+
+set(ASSETS_PUHUI_COMMON_14_1                    "${ASSETS_URL_PREFIX}none-font_puhui_common_14_1-none.bin")
+set(ASSETS_XIAOZHI_WAKENET_ONLY                 "${ASSETS_URL_PREFIX}wn9_nihaoxiaozhi_tts-none-none.bin")
+set(ASSETS_XIAOZHI_PUHUI_COMMON_14_1            "${ASSETS_URL_PREFIX}wn9_nihaoxiaozhi_tts-font_puhui_common_14_1-none.bin")
+set(ASSETS_XIAOZHI_PUHUI_COMMON_16_4_EMOJI_32   "${ASSETS_URL_PREFIX}wn9_nihaoxiaozhi_tts-font_puhui_common_16_4-emojis_32.bin")
+set(ASSETS_XIAOZHI_PUHUI_COMMON_16_4_EMOJI_64   "${ASSETS_URL_PREFIX}wn9_nihaoxiaozhi_tts-font_puhui_common_16_4-emojis_64.bin")
+set(ASSETS_XIAOZHI_PUHUI_COMMON_20_4_EMOJI_64   "${ASSETS_URL_PREFIX}wn9_nihaoxiaozhi_tts-font_puhui_common_20_4-emojis_64.bin")
+set(ASSETS_XIAOZHI_PUHUI_COMMON_30_4_EMOJI_64   "${ASSETS_URL_PREFIX}wn9_nihaoxiaozhi_tts-font_puhui_common_30_4-emojis_64.bin")
+set(ASSETS_XIAOZHI_S_WAKENET_ONLY               "${ASSETS_URL_PREFIX}wn9s_nihaoxiaozhi-none-none.bin")
+set(ASSETS_XIAOZHI_S_PUHUI_COMMON_14_1          "${ASSETS_URL_PREFIX}wn9s_nihaoxiaozhi-font_puhui_common_14_1-none.bin")
+set(ASSETS_XIAOZHI_S_PUHUI_COMMON_16_4_EMOJI_32 "${ASSETS_URL_PREFIX}wn9s_nihaoxiaozhi-font_puhui_common_16_4-emojis_32.bin")
+set(ASSETS_XIAOZHI_S_PUHUI_COMMON_20_4_EMOJI_32 "${ASSETS_URL_PREFIX}wn9s_nihaoxiaozhi-font_puhui_common_20_4-emojis_32.bin")
+set(ASSETS_XIAOZHI_S_PUHUI_COMMON_20_4_EMOJI_64 "${ASSETS_URL_PREFIX}wn9s_nihaoxiaozhi-font_puhui_common_20_4-emojis_64.bin")
+set(ASSETS_XIAOZHI_S_PUHUI_COMMON_30_4_EMOJI_64 "${ASSETS_URL_PREFIX}wn9s_nihaoxiaozhi-font_puhui_common_30_4-emojis_64.bin")
+
+# Embedded font files defined in `xiaozhi-fonts` component
+# Basic fonts include ASCII and about 600 characters used in assets/locales
+set(FONT_PUHUI_BASIC_14_1 font_puhui_basic_14_1)
+set(FONT_PUHUI_BASIC_16_4 font_puhui_basic_16_4)
+set(FONT_PUHUI_BASIC_20_4 font_puhui_basic_20_4)
+set(FONT_PUHUI_BASIC_30_4 font_puhui_basic_30_4)
+# Common fonts include about 7000 common characters generated with DeepSeek R1 tokenizer
+set(FONT_PUHUI_COMMON_14_1 font_puhui_14_1)
+set(FONT_PUHUI_COMMON_16_4 font_puhui_16_4)
+set(FONT_PUHUI_COMMON_20_4 font_puhui_20_4)
+set(FONT_PUHUI_COMMON_30_4 font_puhui_30_4)
+set(FONT_AWESOME_14_1 font_awesome_14_1)
+set(FONT_AWESOME_30_1 font_awesome_30_1)
+set(FONT_AWESOME_16_4 font_awesome_16_4)
+set(FONT_AWESOME_20_4 font_awesome_20_4)
+set(FONT_AWESOME_30_4 font_awesome_30_4)
+
+
+# Define source files
 set(SOURCES "audio/audio_codec.cc"
             "audio/audio_service.cc"
             "audio/codecs/no_audio_codec.cc"
@@ -14,6 +50,13 @@ set(SOURCES "audio/audio_codec.cc"
             "display/display.cc"
             "display/lcd_display.cc"
             "display/oled_display.cc"
+            "display/lvgl_display/lvgl_display.cc"
+            "display/lvgl_display/emoji_collection.cc"
+            "display/lvgl_display/lvgl_theme.cc"
+            "display/lvgl_display/lvgl_font.cc"
+            "display/lvgl_display/lvgl_image.cc"
+            "display/lvgl_display/gif/lvgl_gif.cc"
+            "display/lvgl_display/gif/gifdec.c"
             "protocols/protocol.cc"
             "protocols/mqtt_protocol.cc"
             "protocols/websocket_protocol.cc"
@@ -24,15 +67,19 @@ set(SOURCES "audio/audio_codec.cc"
             "custom_ota.cc"
             "settings.cc"
             "device_state_event.cc"
+            "assets.cc"
             "main.cc"
             )
 
-set(INCLUDE_DIRS "." "display" "audio" "protocols")
+set(INCLUDE_DIRS "." "display" "display/lvgl_display" "audio" "protocols")
 
-# 添加板级公共文件
+# Add board common files
 file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)
 list(APPEND SOURCES ${BOARD_COMMON_SOURCES})
 list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/common)
+# Set default LVGL_TEXT_FONT and LVGL_ICON_FONT
+set(LVGL_TEXT_FONT ${FONT_PUHUI_COMMON_16_4})
+set(LVGL_ICON_FONT ${FONT_AWESOME_16_4})
 
 if(CONFIG_BOARD_PATH)
 get_filename_component(BOARD_TYPE ${CONFIG_BOARD_PATH} NAME)
@@ -52,6 +99,7 @@ else()
 endif()
 endif()
 
+# Select audio processor according to Kconfig
 if(CONFIG_USE_AUDIO_PROCESSOR)
     list(APPEND SOURCES "audio/processors/afe_audio_processor.cc")
 else()
@@ -65,7 +113,7 @@ elseif(CONFIG_USE_CUSTOM_WAKE_WORD)
     list(APPEND SOURCES "audio/wake_words/custom_wake_word.cc")
 endif()
 
-# 根据Kconfig选择语言目录
+# Select language directory according to Kconfig
 if(CONFIG_LANGUAGE_ZH_CN)
     set(LANG_DIR "zh-CN")
 elseif(CONFIG_LANGUAGE_ZH_TW)
@@ -177,13 +225,14 @@ idf_component_register(SRCS ${SOURCES}
                     WHOLE_ARCHIVE
                     )
 
-# 使用 target_compile_definitions 来定义 BOARD_TYPE, BOARD_NAME
-# 如果 BOARD_NAME 为空，则使用 BOARD_TYPE
+# Use target_compile_definitions to define BOARD_TYPE, BOARD_NAME
+# If BOARD_NAME is empty, use BOARD_TYPE
 if(NOT BOARD_NAME)
     set(BOARD_NAME ${BOARD_TYPE})
 endif()
 target_compile_definitions(${COMPONENT_LIB}
                     PRIVATE BOARD_TYPE=\"${BOARD_TYPE}\" BOARD_NAME=\"${BOARD_NAME}\"
+                    PRIVATE DEFAULT_ASSETS=\"${DEFAULT_ASSETS}\" LVGL_TEXT_FONT=${LVGL_TEXT_FONT} LVGL_ICON_FONT=${LVGL_ICON_FONT}
                     )
 
 if(NOT CONFIG_ASSETS_FIX_PATH STREQUAL "")
@@ -212,7 +261,7 @@ add_custom_command(
 )
 endif()
 
-# 强制建立生成依赖
+# Force build generation dependencies
 add_custom_target(lang_header ALL
     DEPENDS ${LANG_HEADER}
 )
@@ -238,7 +287,7 @@ foreach(FILENAME IN LISTS FILES_TO_DOWNLOAD)
     set(REMOTE_FILE "${URL}/${FILENAME}")
     set(LOCAL_FILE "${SPIFFS_DIR}/${FILENAME}")
     
-    # 检查本地文件是否存在
+    # Check if local file exists
     if(EXISTS ${LOCAL_FILE})
         message(STATUS "File ${FILENAME} already exists, skipping download")
     else()
@@ -279,4 +328,132 @@ spiffs_create_partition_assets(
     MMAP_FILE_SUPPORT_FORMAT ".aaf, ttf, bin"
     IMPORT_INC_PATH ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}
 )
+endif()
+
+# Font configuration validation function
+function(validate_font_config board_name text_font default_assets)
+    if(text_font)
+        # Check if DEFAULT_ASSETS contains font
+        if(default_assets AND default_assets MATCHES "font_")
+            # Rule 1: If DEFAULT_ASSETS uses font, LVGL_TEXT_FONT must be BASIC
+            if(NOT text_font MATCHES "basic")
+                message(FATAL_ERROR "Font config error for ${board_name}: DEFAULT_ASSETS contains COMMON font but LVGL_TEXT_FONT is not BASIC (${text_font})")
+            endif()
+        else()
+            # Rule 2: If no DEFAULT_ASSETS or DEFAULT_ASSETS doesn't contain font_, LVGL_TEXT_FONT must not be BASIC
+            if(text_font MATCHES "basic")
+                message(FATAL_ERROR "Font config error for ${board_name}: No DEFAULT_ASSETS with COMMON font but LVGL_TEXT_FONT is not COMMON (${text_font})")
+            endif()
+        endif()
+        # Pass validation
+        message(STATUS "Font config validation passed for ${board_name}: LVGL_TEXT_FONT=${text_font}, DEFAULT_ASSETS=${default_assets}")
+    endif()
+endfunction()
+
+# DEFAULT_ASSETS prefix validation function
+function(validate_default_assets_prefix board_name default_assets)
+    if(default_assets)
+        # Check for ESP32S3/P4 target - DEFAULT_ASSETS cannot start with "wn9s_"
+        if(CONFIG_IDF_TARGET_ESP32S3 OR CONFIG_IDF_TARGET_ESP32P4)
+            if(default_assets MATCHES "^wn9s_")
+                message(FATAL_ERROR "Assets config error for ${board_name}: DEFAULT_ASSETS cannot start with 'wn9s_' for ESP32S3 target (${default_assets})")
+            endif()
+        endif()
+        
+        # Check for ESP32C3/C6 target - DEFAULT_ASSETS cannot start with "wn9_"
+        if(CONFIG_IDF_TARGET_ESP32C3 OR CONFIG_IDF_TARGET_ESP32C6)
+            if(default_assets MATCHES "^wn9_")
+                message(FATAL_ERROR "Assets config error for ${board_name}: DEFAULT_ASSETS cannot start with 'wn9_' for ESP32C3/C6 target (${default_assets})")
+            endif()
+        endif()
+        
+        # Pass validation
+        message(STATUS "Assets prefix validation passed for ${board_name}: DEFAULT_ASSETS=${default_assets}")
+    endif()
+endfunction()
+
+# Global font configuration validation
+# This will validate the current board's font configuration
+if(LVGL_TEXT_FONT)
+    validate_font_config("${BOARD_TYPE}" "${LVGL_TEXT_FONT}" "${DEFAULT_ASSETS}")
+endif()
+
+# Global DEFAULT_ASSETS prefix validation
+# This will validate the current board's DEFAULT_ASSETS prefix configuration
+if(DEFAULT_ASSETS)
+    validate_default_assets_prefix("${BOARD_TYPE}" "${DEFAULT_ASSETS}")
+endif()
+
+# Function to get local assets file path (handles both URL and local file)
+function(get_assets_local_file assets_source assets_local_file_var)
+    # Check if it's a URL (starts with http:// or https://)
+    if(assets_source MATCHES "^https?://")
+        # It's a URL, download it
+        get_filename_component(ASSETS_FILENAME "${assets_source}" NAME)
+        set(ASSETS_LOCAL_FILE "${CMAKE_BINARY_DIR}/${ASSETS_FILENAME}")
+        set(ASSETS_TEMP_FILE "${CMAKE_BINARY_DIR}/${ASSETS_FILENAME}.tmp")
+        
+        # Check if local file exists
+        if(EXISTS ${ASSETS_LOCAL_FILE})
+            message(STATUS "Assets file ${ASSETS_FILENAME} already exists, skipping download")
+        else()
+            message(STATUS "Downloading ${ASSETS_FILENAME}")
+            
+            # Clean up any existing temp file
+            if(EXISTS ${ASSETS_TEMP_FILE})
+                file(REMOVE ${ASSETS_TEMP_FILE})
+            endif()
+            
+            # Download to temporary file first
+            file(DOWNLOAD ${assets_source} ${ASSETS_TEMP_FILE}
+                 STATUS DOWNLOAD_STATUS)
+            list(GET DOWNLOAD_STATUS 0 STATUS_CODE)
+            if(NOT STATUS_CODE EQUAL 0)
+                # Clean up temp file on failure
+                if(EXISTS ${ASSETS_TEMP_FILE})
+                    file(REMOVE ${ASSETS_TEMP_FILE})
+                endif()
+                message(FATAL_ERROR "Failed to download ${ASSETS_FILENAME} from ${assets_source}")
+            endif()
+            
+            # Move temp file to final location (atomic operation)
+            file(RENAME ${ASSETS_TEMP_FILE} ${ASSETS_LOCAL_FILE})
+            message(STATUS "Successfully downloaded ${ASSETS_FILENAME}")
+        endif()
+    else()
+        # It's a local file path
+        if(IS_ABSOLUTE "${assets_source}")
+            set(ASSETS_LOCAL_FILE "${assets_source}")
+        else()
+            set(ASSETS_LOCAL_FILE "${CMAKE_CURRENT_SOURCE_DIR}/${assets_source}")
+        endif()
+        
+        # Check if local file exists
+        if(NOT EXISTS ${ASSETS_LOCAL_FILE})
+            message(FATAL_ERROR "Assets file not found: ${ASSETS_LOCAL_FILE}")
+        endif()
+        
+        message(STATUS "Using assets file: ${ASSETS_LOCAL_FILE}")
+    endif()
+    
+    set(${assets_local_file_var} ${ASSETS_LOCAL_FILE} PARENT_SCOPE)
+endfunction()
+
+# Flash assets based on configuration
+if(CONFIG_FLASH_DEFAULT_ASSETS)
+    # Flash default assets
+    if(DEFAULT_ASSETS)
+        get_assets_local_file("${DEFAULT_ASSETS}" ASSETS_LOCAL_FILE)
+        esptool_py_flash_to_partition(flash "assets" "${ASSETS_LOCAL_FILE}")
+        message(STATUS "Default assets download and flash configured: ${DEFAULT_ASSETS} -> assets partition")
+    else()
+        message(WARNING "FLASH_DEFAULT_ASSETS is enabled but no DEFAULT_ASSETS is defined for board ${BOARD_TYPE}")
+    endif()
+elseif(CONFIG_FLASH_CUSTOM_ASSETS)
+    # Flash custom assets
+    get_assets_local_file("${CONFIG_CUSTOM_ASSETS_FILE}" ASSETS_LOCAL_FILE)
+    esptool_py_flash_to_partition(flash "assets" "${ASSETS_LOCAL_FILE}")
+    message(STATUS "Custom assets flash configured: ${ASSETS_LOCAL_FILE} -> assets partition")
+elseif(CONFIG_FLASH_NONE_ASSETS)
+    message(STATUS "Assets flashing disabled (FLASH_NONE_ASSETS)")
 endif()

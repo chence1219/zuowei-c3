@@ -49,7 +49,7 @@ bool CustomOta::CheckVersion() {
 
     auto http = std::unique_ptr<Http>(SetupHttp());
 
-    std::string data = board.GetJson();
+    std::string data = board.GetBoardJson();
     std::string method = data.length() > 0 ? "POST" : "GET";
     http->SetContent(std::move(data));
 

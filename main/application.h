@@ -9,7 +9,6 @@
 #include <string>
 #include <mutex>
 #include <deque>
-#include <vector>
 #include <memory>
 
 #include "protocol.h"
@@ -18,12 +17,15 @@
 #include "audio_service.h"
 #include "device_state_event.h"
 
+
 #define MAIN_EVENT_SCHEDULE (1 << 0)
 #define MAIN_EVENT_SEND_AUDIO (1 << 1)
 #define MAIN_EVENT_WAKE_WORD_DETECTED (1 << 2)
 #define MAIN_EVENT_VAD_CHANGE (1 << 3)
 #define MAIN_EVENT_ERROR (1 << 4)
 #define MAIN_EVENT_CHECK_NEW_VERSION_DONE (1 << 5)
+#define MAIN_EVENT_CLOCK_TICK (1 << 6)
+
 
 enum AecMode {
     kAecOff,
@@ -56,6 +58,7 @@ public:
     void StopListening();
     void Reboot();
     void WakeWordInvoke(const std::string& wake_word);
+    bool UpgradeFirmware(Ota& ota, const std::string& url = "");
     bool CanEnterSleepMode();
     void SendMcpMessage(const std::string& payload);
     void SetAecMode(AecMode mode, bool notification = true);
@@ -109,6 +112,7 @@ private:
 
     void OnWakeWordDetected();
     void CheckNewVersion(Ota& ota);
+    void CheckAssetsVersion();
     void ShowActivationCode(const std::string& code, const std::string& message);
 #ifdef CONFIG_USE_CUSTOM_OTA
     void CheckNewVersionForCustom();
