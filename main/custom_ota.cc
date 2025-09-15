@@ -49,7 +49,7 @@ bool CustomOta::CheckVersion() {
 
     auto http = std::unique_ptr<Http>(SetupHttp());
 
-    std::string data = board.GetBoardJson();
+    std::string data = board.GetSystemInfoJson();
     std::string method = data.length() > 0 ? "POST" : "GET";
     http->SetContent(std::move(data));
 
@@ -70,7 +70,7 @@ bool CustomOta::CheckVersion() {
     // Response: { "firmware": { "version": "1.0.0", "url": "http://" } }
     // Parse the JSON response and check if the version is newer
     // If it is, set has_new_version_ to true and store the new version and URL
-    
+    ESP_LOGI(TAG, "Response: %s", data.c_str());
     cJSON *root = cJSON_Parse(data.c_str());
     if (root == NULL) {
         ESP_LOGE(TAG, "Failed to parse JSON response");
