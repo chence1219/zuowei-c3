@@ -80,3 +80,4 @@ dependencies:
   ## Required IDF version
   idf:
     version: '>=5.4.0'
+  espressif/esp_audio_simple_player: ^0.9.4~1
