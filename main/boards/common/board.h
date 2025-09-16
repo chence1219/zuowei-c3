@@ -52,7 +52,6 @@ public:
     virtual void SetPowerSaveMode(bool enabled) = 0;
     virtual std::string GetBoardJson() = 0;
     virtual std::string GetDeviceStatusJson() = 0;
-    virtual Assets* GetAssets();
     virtual void OnStateChanged() {}
 };
 

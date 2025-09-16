@@ -77,28 +77,20 @@ Application::~Application() {
 void Application::CheckAssetsVersion() {
     auto& board = Board::GetInstance();
     auto display = board.GetDisplay();
-    auto assets = board.GetAssets();
-    if (!assets) {
-        ESP_LOGE(TAG, "Assets is not set for board %s", BOARD_NAME);
-        return;
-    }
+    auto& assets = Assets::GetInstance();
 
-    if (!assets->partition_valid()) {
-        ESP_LOGE(TAG, "Assets partition is not valid for board %s", BOARD_NAME);
+    if (!assets.partition_valid()) {
+        ESP_LOGW(TAG, "Assets partition is disabled for board %s", BOARD_NAME);
         return;
     }
     
     Settings settings("assets", true);
     // Check if there is a new assets need to be downloaded
     std::string download_url = settings.GetString("download_url");
-    if (!download_url.empty()) {
-        settings.EraseKey("download_url");
-    }
-    if (download_url.empty() && !assets->checksum_valid()) {
-        download_url = assets->default_assets_url();
-    }
 
     if (!download_url.empty()) {
+        settings.EraseKey("download_url");
+
         char message[256];
         snprintf(message, sizeof(message), Lang::Strings::FOUND_NEW_ASSETS, download_url.c_str());
         Alert(Lang::Strings::LOADING_ASSETS, message, "cloud_arrow_down", Lang::Sounds::OGG_UPGRADE);
@@ -109,7 +101,7 @@ void Application::CheckAssetsVersion() {
         board.SetPowerSaveMode(false);
         display->SetChatMessage("system", Lang::Strings::PLEASE_WAIT);
 
-        bool success = assets->Download(download_url, [display](int progress, size_t speed) -> void {
+        bool success = assets.Download(download_url, [display](int progress, size_t speed) -> void {
             std::thread([display, progress, speed]() {
                 char buffer[32];
                 snprintf(buffer, sizeof(buffer), "%d%% %uKB/s", progress, speed / 1024);
@@ -128,7 +120,7 @@ void Application::CheckAssetsVersion() {
     }
 
     // Apply assets
-    assets->Apply();
+    assets.Apply();
     display->SetChatMessage("system", "");
     display->SetEmotion("microchip_ai");
 }
@@ -473,6 +465,9 @@ void Application::Start() {
     /* Setup the display */
     auto display = board.GetDisplay();
 
+    // Print board name/version info
+    display->SetChatMessage("system", SystemInfo::GetUserAgent().c_str());
+
     /* Setup the audio service */
     auto codec = board.GetAudioCodec();
     audio_service_.Initialize(codec);
@@ -489,6 +484,12 @@ void Application::Start() {
         xEventGroupSetBits(event_group_, MAIN_EVENT_VAD_CHANGE);
     };
     audio_service_.SetCallbacks(callbacks);
+
+    // Start the main event loop task with priority 3
+    xTaskCreate([](void* arg) {
+        ((Application*)arg)->MainEventLoop();
+        vTaskDelete(NULL);
+    }, "main_event_loop", 2048 * 4, this, 3, &main_event_loop_task_handle_);
 
     /* Start the clock timer to update the status bar */
     esp_timer_start_periodic(clock_timer_handle_, 1000000);
@@ -737,9 +738,6 @@ void Application::Schedule(std::function<void()> callback) {
 // If other tasks need to access the websocket or chat state,
 // they should use Schedule to call this function
 void Application::MainEventLoop() {
-    // Raise the priority of the main event loop to avoid being interrupted by background tasks (which has priority 2)
-    vTaskPrioritySet(NULL, 3);
-
     while (true) {
         auto bits = xEventGroupWaitBits(event_group_, MAIN_EVENT_SCHEDULE |
             MAIN_EVENT_SEND_AUDIO |
@@ -980,7 +978,7 @@ bool Application::UpgradeFirmware(Ota& ota, const std::string& url) {
 
 void Application::PlayHere(void) {
     Schedule([this]() {
-        audio_service_.PlaySound(Lang::Sounds::OGG_HERE);
+        audio_service_.PlaySound(Lang::Sounds::OGG_POPUP);
     });
 }
 
@@ -1075,11 +1073,18 @@ bool Application::CanEnterSleepMode() {
 }
 
 void Application::SendMcpMessage(const std::string& payload) {
-    Schedule([this, payload]() {
-        if (protocol_) {
+    if (protocol_ == nullptr) {
+        return;
+    }
+
+    // Make sure you are using main thread to send MCP message
+    if (xTaskGetCurrentTaskHandle() == main_event_loop_task_handle_) {
+        protocol_->SendMcpMessage(payload);
+    } else {
+        Schedule([this, payload = std::move(payload)]() {
             protocol_->SendMcpMessage(payload);
-        }
-    });
+        });
+    }
 }
 
 void Application::SetAecMode(AecMode mode, bool notification) {

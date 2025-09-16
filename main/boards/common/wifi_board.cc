@@ -128,6 +128,9 @@ auto& application = Application::GetInstance();
     wifi_ap.SetSsidPrefix(CONFIG_WIFI_CONFIG_MODE_SSID_PREFIX);
     wifi_ap.Start();
 
+    // 等待 1 秒显示开发板信息
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
 #ifdef CONFIG_WIFI_CONFIG_MODE_FORMAT_DISPLAY
     // 显示 WiFi 配置 AP 的 SSID 和 Web 服务器 URL
     std::string hint = Lang::Strings::CONNECT_TO_HOTSPOT;
