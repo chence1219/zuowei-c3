@@ -77,6 +77,17 @@ set(INCLUDE_DIRS "." "display" "display/lvgl_display" "audio" "protocols")
 file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)
 list(APPEND SOURCES ${BOARD_COMMON_SOURCES})
 list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/common)
+
+# 允许添加外部代码
+if(EXTERNAL_SOURCE_PATH)
+    file(GLOB EXTERNAL_SOURCES
+        ${EXTERNAL_SOURCE_PATH}/*.cc
+        ${EXTERNAL_SOURCE_PATH}/*.c
+    )
+    list(APPEND SOURCES ${EXTERNAL_SOURCES})
+    list(APPEND INCLUDE_DIRS ${EXTERNAL_SOURCE_PATH}/../)
+endif()
+
 # Set default LVGL_TEXT_FONT and LVGL_ICON_FONT
 set(LVGL_TEXT_FONT ${FONT_PUHUI_COMMON_16_4})
 set(LVGL_ICON_FONT ${FONT_AWESOME_16_4})
