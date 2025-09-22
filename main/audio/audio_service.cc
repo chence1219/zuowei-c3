@@ -19,7 +19,7 @@
 #define TAG "AudioService"
 
 #if defined(CONFIG_USE_AUDIO_CODEC_ENCODE_OPUS) && (CONFIG_USE_WAKE_WORD_DETECT || CONFIG_USE_AUDIO_PROCESSOR)
-#error "audoio_processor or wake_word_detect need opus encoder"
+#error "audio_processor或wake_word_detect需要额外的opus编码器, 但是解码器传过来的已经是opus编码的音频数据了, 所以不能同时使用"
 #endif
 
 #ifndef CONFIG_OPUS_CODEC_TASK_STACK_SIZE
@@ -145,7 +145,7 @@ void AudioService::Start() {
 
 #if CONFIG_USE_AUDIO_PROCESSOR
     /* Start the audio input task */
-    xTaskCreate([](void* arg) {
+    xTaskCreatePinnedToCore([](void* arg) {
         AudioService* audio_service = (AudioService*)arg;
         audio_service->AudioInputTask();
         vTaskDelete(NULL);
