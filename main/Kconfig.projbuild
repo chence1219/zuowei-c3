@@ -130,46 +130,68 @@ config ASSETS_FIX_PATH
     help
         Assets Fix Path
 
-config USE_WECHAT_MESSAGE_STYLE
-    bool "Enable WeChat Message Style"
-    default n
+choice DISPLAY_STYLE
+    prompt "Select display style"
+    default USE_DEFAULT_MESSAGE_STYLE
     help
-        使用微信聊天界面风格
+        Select display style for Xiaozhi device
 
-config USE_ESP_WAKE_WORD
-    bool "Enable Wake Word Detection (without AFE)"
-    default n
-    depends on IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C5 || IDF_TARGET_ESP32C6 || (IDF_TARGET_ESP32 && SPIRAM)
-    help
-        支持 ESP32 C3、ESP32 C5 与 ESP32 C6，增加ESP32支持（需要开启PSRAM）
+    config USE_DEFAULT_MESSAGE_STYLE
+        bool "Enable default message style"
 
-config USE_AFE_WAKE_WORD
-    bool "Enable Wake Word Detection (AFE)"
-    default y
-    depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM
-    help
-        需要 ESP32 S3 与 PSRAM 支持
+    config USE_WECHAT_MESSAGE_STYLE
+        bool "Enable WeChat Message Style"
 
-config USE_CUSTOM_WAKE_WORD
-    bool "Enable Custom Wake Word Detection"
-    default n
-    depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM && (!USE_AFE_WAKE_WORD)
+    config USE_EMOTE_MESSAGE_STYLE
+        bool "Emote animation style"
+        depends on BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ECHOEAR
+endchoice
+
+choice WAKE_WORD_TYPE
+    prompt "Wake Word Implementation Type"
+    default USE_AFE_WAKE_WORD if (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM
+    default WAKE_WORD_DISABLED
     help
-        需要 ESP32 S3 与 PSRAM 支持
-        
+        Choose the type of wake word implementation to use
+
+    config WAKE_WORD_DISABLED
+        bool "Disabled"
+        help
+            Disable wake word detection
+
+    config USE_ESP_WAKE_WORD
+        bool "Wakenet model without AFE"
+        depends on IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C5 || IDF_TARGET_ESP32C6 || (IDF_TARGET_ESP32 && SPIRAM)
+        help
+            Support ESP32 C3、ESP32 C5 与 ESP32 C6, and (ESP32 with PSRAM)
+
+    config USE_AFE_WAKE_WORD
+        bool "Wakenet model with AFE"
+        depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM
+        help
+            Support AEC if available, requires ESP32 S3 and PSRAM
+
+    config USE_CUSTOM_WAKE_WORD
+        bool "Multinet model (Custom Wake Word)"
+        depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM
+        help
+            Requires ESP32 S3 and PSRAM
+
+endchoice
+
 config CUSTOM_WAKE_WORD
     string "Custom Wake Word"
     default "xiao tu dou"
     depends on USE_CUSTOM_WAKE_WORD
     help
-        自定义唤醒词，中文用拼音表示，每个字之间用空格隔开
+        Custom Wake Word, use pinyin for Chinese, separated by spaces
 
 config CUSTOM_WAKE_WORD_DISPLAY
     string "Custom Wake Word Display"
     default "小土豆"
     depends on USE_CUSTOM_WAKE_WORD
     help
-        唤醒后发送给服务器的问候语 
+        Greeting sent to the server after wake word detection
 
 config CUSTOM_WAKE_WORD_THRESHOLD
     int "Custom Wake Word Threshold (%)"
@@ -177,14 +199,21 @@ config CUSTOM_WAKE_WORD_THRESHOLD
     range 1 99
     depends on USE_CUSTOM_WAKE_WORD
     help
-        自定义唤醒词阈值，范围1-99，越小越敏感，默认10
+        Custom Wake Word Threshold, range 1-99, the smaller the more sensitive, default 20
 
+config SEND_WAKE_WORD_DATA
+    bool "Send Wake Word Data"
+    default y
+    depends on USE_AFE_WAKE_WORD || USE_CUSTOM_WAKE_WORD
+    help
+        Send wake word data to the server as the first message of the conversation and wait for response
+        
 config USE_AUDIO_PROCESSOR
     bool "Enable Audio Noise Reduction"
     default y
     depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM
     help
-        需要 ESP32 S3 与 PSRAM 支持
+        Requires ESP32 S3 and PSRAM
 
 config USE_DEVICE_AEC
     bool "Enable Device-Side AEC"
@@ -202,56 +231,53 @@ config USE_SERVER_AEC
     bool "Enable Server-Side AEC (Unstable)"
     default n
     help
-        启用服务器端 AEC，需要服务器支持
+        To work perperly, server-side AEC requires server support
 
 config USE_AUDIO_DEBUGGER
     bool "Enable Audio Debugger"
     default n
     help
-        启用音频调试功能，通过UDP发送音频数据
-
-config USE_ACOUSTIC_WIFI_PROVISIONING
-    bool "Enable Acoustic WiFi Provisioning"
-    default n
-    help
-        启用声波配网功能，使用音频信号传输 WiFi 配置数据
+        Enable audio debugger, send audio data through UDP to the host machine
 
 config AUDIO_DEBUG_UDP_SERVER
     string "Audio Debug UDP Server Address"
     default "192.168.2.100:8000"
     depends on USE_AUDIO_DEBUGGER
     help
-        UDP服务器地址，格式: IP:PORT，用于接收音频调试数据
+        UDP server address, format: IP:PORT, used to receive audio debugging data
+
+config USE_ACOUSTIC_WIFI_PROVISIONING
+    bool "Enable Acoustic WiFi Provisioning"
+    default n
+    help
+        Enable acoustic WiFi provisioning, use audio signal to transmit WiFi configuration data
 
 config RECEIVE_CUSTOM_MESSAGE
     bool "Enable Custom Message Reception"
     default n
     help
-        启用接收自定义消息功能，允许设备接收来自服务器的自定义消息（最好通过 MQTT 协议）
+        Enable custom message reception, allow the device to receive custom messages from the server (preferably through the MQTT protocol)
 
-choice I2S_TYPE_TAIJIPI_S3
+menu TAIJIPAI_S3_CONFIG
     depends on BOARD_TYPE_ESP32S3_Taiji_Pi
-    prompt "taiji-pi-S3 I2S Type"
-    default TAIJIPAI_I2S_TYPE_STD
-    help
-        I2S 类型选择
-    config TAIJIPAI_I2S_TYPE_STD
-        bool "I2S Type STD"
-    config TAIJIPAI_I2S_TYPE_PDM
-        bool "I2S Type PDM"
-endchoice
+    choice I2S_TYPE_TAIJIPI_S3
+        prompt "taiji-pi-S3 I2S Type"
+        default TAIJIPAI_I2S_TYPE_STD
+        help
+            I2S 类型选择
+        config TAIJIPAI_I2S_TYPE_STD
+            bool "I2S Type STD"
+        config TAIJIPAI_I2S_TYPE_PDM
+            bool "I2S Type PDM"
+    endchoice
 
-config USE_AUDIO_TEST
-    bool "Enable Audio Test"
+    config I2S_USE_2SLOT
+    bool "Enable I2S 2 Slot"
     default n
     help
-        启用音频测试功能
+        启动双声道
+endmenu
 
-config MCP_TOOLCALL_DEFAULT_STACK_SIZE
-    int "mcp toolcall default stack size"
-    depends on IOT_PROTOCOL_MCP
-    default 6144
-    
 config SPEAKING_FIRST_MUTE_TIME
     int "Time to mute before speaking"
     default 0

@@ -16,6 +16,7 @@ set(SOURCES "audio/audio_codec.cc"
             "display/lcd_display.cc"
             "display/oled_display.cc"
             "display/lvgl_display/lvgl_display.cc"
+            "display/emote_display.cc"
             "display/lvgl_display/emoji_collection.cc"
             "display/lvgl_display/lvgl_theme.cc"
             "display/lvgl_display/lvgl_font.cc"
@@ -56,6 +57,17 @@ if(EXTERNAL_SOURCE_PATH)
 endif()
 
 idf_build_get_property(build_components BUILD_COMPONENTS)
+# Function to find component dynamically by pattern
+function(find_component_by_pattern PATTERN COMPONENT_VAR PATH_VAR)
+    foreach(COMPONENT ${build_components})
+        if(COMPONENT MATCHES "${PATTERN}")
+            set(${COMPONENT_VAR} ${COMPONENT} PARENT_SCOPE)
+            idf_component_get_property(COMPONENT_PATH ${COMPONENT} COMPONENT_DIR)
+            set(${PATH_VAR} "${COMPONENT_PATH}" PARENT_SCOPE)
+            break()
+        endif()
+    endforeach()
+endfunction()
 
 # Set default BUILTIN_TEXT_FONT and BUILTIN_ICON_FONT
 set(BUILTIN_TEXT_FONT font_puhui_14_1)
@@ -85,12 +97,11 @@ if(CONFIG_USE_AUDIO_PROCESSOR)
 else()
     list(APPEND SOURCES "audio/processors/no_audio_processor.cc")
 endif()
-if(CONFIG_USE_AFE_WAKE_WORD)
+if(CONFIG_IDF_TARGET_ESP32S3 OR CONFIG_IDF_TARGET_ESP32P4)
     list(APPEND SOURCES "audio/wake_words/afe_wake_word.cc")
-elseif(CONFIG_USE_ESP_WAKE_WORD)
-    list(APPEND SOURCES "audio/wake_words/esp_wake_word.cc")
-elseif(CONFIG_USE_CUSTOM_WAKE_WORD)
     list(APPEND SOURCES "audio/wake_words/custom_wake_word.cc")
+else()
+    list(APPEND SOURCES "audio/wake_words/esp_wake_word.cc")
 endif()
 
 # Select language directory according to Kconfig
@@ -140,9 +151,6 @@ elseif(CONFIG_LANGUAGE_RO_RO)
     set(LANG_DIR "ro-RO")
 endif()
 
-
-
-
 # 定义生成路径
 if(NOT CONFIG_ASSETS_PATH)
     set(CONFIG_ASSETS_PATH "assets")
@@ -188,15 +196,14 @@ if(NOT CONFIG_ASSETS_FIX_PATH STREQUAL "")
     list(APPEND INCLUDE_DIRS ${CONFIG_ASSETS_FIX_PATH}/..)
 endif()
 
-list(APPEND SOURCES "audio/codecs/vb6824_audio_codec.cc")
-if(CONFIG_USE_AUDIO_CODEC_ENCODE_OPUS OR CONFIG_USE_AUDIO_CODEC_DECODE_OPUS)
-list(REMOVE_ITEM SOURCES "audio/codecs/box_audio_codec.cc"
-                        "audio/codecs/no_audio_codec.cc"
-                        "audio/codecs/box_audio_codec.cc"
-                        "audio/codecs/es8311_audio_codec.cc"
-                        "audio/codecs/es8374_audio_codec.cc"
-                        "audio/codecs/es8388_audio_codec.cc"
-                        "audio/codecs/es8389_audio_codec.cc")
+if(CONFIG_USE_AUDIO_CODEC_ENCODE_OPUS OR CONFIG_USE_AUDIO_CODEC_DECODE_OPUS OR CONFIG_BOARD_TYPE_DOIT_AI_02_KIT_LCD)
+    list(APPEND SOURCES "audio/codecs/vb6824_audio_codec.cc")
+    list(REMOVE_ITEM SOURCES "audio/codecs/box_audio_codec.cc"
+                            "audio/codecs/no_audio_codec.cc"
+                            "audio/codecs/es8311_audio_codec.cc"
+                            "audio/codecs/es8374_audio_codec.cc"
+                            "audio/codecs/es8388_audio_codec.cc"
+                            "audio/codecs/es8389_audio_codec.cc")
 endif()
 
 idf_component_register(SRCS ${SOURCES}
@@ -247,24 +254,16 @@ add_custom_target(lang_header ALL
 )
 
 # Find ESP-SR component dynamically
-foreach(COMPONENT ${build_components})
-    if(COMPONENT MATCHES "espressif__esp-sr")
-        set(ESP_SR_COMPONENT ${COMPONENT})
-        idf_component_get_property(ESP_SR_COMPONENT_PATH ${ESP_SR_COMPONENT} COMPONENT_DIR)
-        set(ESP_SR_MODEL_PATH "${ESP_SR_COMPONENT_PATH}/model")
-        break()
-    endif()
-endforeach()
+find_component_by_pattern("espressif__esp-sr" ESP_SR_COMPONENT ESP_SR_COMPONENT_PATH)
+if(ESP_SR_COMPONENT_PATH)
+    set(ESP_SR_MODEL_PATH "${ESP_SR_COMPONENT_PATH}/model")
+endif()
 
 # Find xiaozhi-fonts component dynamically
-foreach(COMPONENT ${build_components})
-    if(COMPONENT MATCHES "xiaozhi-fonts")
-        set(XIAOZHI_FONTS_COMPONENT ${COMPONENT})
-        idf_component_get_property(XIAOZHI_FONTS_COMPONENT_PATH ${XIAOZHI_FONTS_COMPONENT} COMPONENT_DIR)
-        set(XIAOZHI_FONTS_PATH "${XIAOZHI_FONTS_COMPONENT_PATH}")
-        break()
-    endif()
-endforeach()
+find_component_by_pattern("xiaozhi-fonts" XIAOZHI_FONTS_COMPONENT XIAOZHI_FONTS_COMPONENT_PATH)
+if(XIAOZHI_FONTS_COMPONENT_PATH)
+    set(XIAOZHI_FONTS_PATH "${XIAOZHI_FONTS_COMPONENT_PATH}")
+endif()
 
 if(CONFIG_BOARD_TYPE_ESP_HI)
 set(URL "https://github.com/espressif2022/image_player/raw/main/test_apps/test_8bit")
@@ -353,6 +352,62 @@ function(build_default_assets_bin)
     set(GENERATED_ASSETS_LOCAL_FILE ${GENERATED_ASSETS_BIN} PARENT_SCOPE)
     
     message(STATUS "Default assets build configured: ${GENERATED_ASSETS_BIN}")
+endfunction()
+
+
+# Function to get local assets file path (handles both URL and local file)
+function(get_assets_local_file assets_source assets_local_file_var)
+    # Check if it's a URL (starts with http:// or https://)
+    if(assets_source MATCHES "^https?://")
+        # It's a URL, download it
+        get_filename_component(ASSETS_FILENAME "${assets_source}" NAME)
+        set(ASSETS_LOCAL_FILE "${CMAKE_BINARY_DIR}/${ASSETS_FILENAME}")
+        set(ASSETS_TEMP_FILE "${CMAKE_BINARY_DIR}/${ASSETS_FILENAME}.tmp")
+        
+        # Check if local file exists
+        if(EXISTS ${ASSETS_LOCAL_FILE})
+            message(STATUS "Assets file ${ASSETS_FILENAME} already exists, skipping download")
+        else()
+            message(STATUS "Downloading ${ASSETS_FILENAME}")
+            
+            # Clean up any existing temp file
+            if(EXISTS ${ASSETS_TEMP_FILE})
+                file(REMOVE ${ASSETS_TEMP_FILE})
+            endif()
+            
+            # Download to temporary file first
+            file(DOWNLOAD ${assets_source} ${ASSETS_TEMP_FILE}
+                 STATUS DOWNLOAD_STATUS)
+            list(GET DOWNLOAD_STATUS 0 STATUS_CODE)
+            if(NOT STATUS_CODE EQUAL 0)
+                # Clean up temp file on failure
+                if(EXISTS ${ASSETS_TEMP_FILE})
+                    file(REMOVE ${ASSETS_TEMP_FILE})
+                endif()
+                message(FATAL_ERROR "Failed to download ${ASSETS_FILENAME} from ${assets_source}")
+            endif()
+            
+            # Move temp file to final location (atomic operation)
+            file(RENAME ${ASSETS_TEMP_FILE} ${ASSETS_LOCAL_FILE})
+            message(STATUS "Successfully downloaded ${ASSETS_FILENAME}")
+        endif()
+    else()
+        # It's a local file path
+        if(IS_ABSOLUTE "${assets_source}")
+            set(ASSETS_LOCAL_FILE "${assets_source}")
+        else()
+            set(ASSETS_LOCAL_FILE "${CMAKE_CURRENT_SOURCE_DIR}/${assets_source}")
+        endif()
+        
+        # Check if local file exists
+        if(NOT EXISTS ${ASSETS_LOCAL_FILE})
+            message(FATAL_ERROR "Assets file not found: ${ASSETS_LOCAL_FILE}")
+        endif()
+        
+        message(STATUS "Using assets file: ${ASSETS_LOCAL_FILE}")
+    endif()
+    
+    set(${assets_local_file_var} ${ASSETS_LOCAL_FILE} PARENT_SCOPE)
 endfunction()
 
 

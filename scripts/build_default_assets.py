@@ -17,8 +17,6 @@ import shutil
 import sys
 import json
 import struct
-import math
-from pathlib import Path
 from datetime import datetime
 
 
@@ -156,21 +154,45 @@ def copy_directory(src, dst):
         return False
 
 
-def process_wakenet_model(wakenet_model_dir, build_dir, assets_dir):
-    """Process wakenet_model parameter"""
-    if not wakenet_model_dir:
+def process_sr_models(wakenet_model_dirs, multinet_model_dirs, build_dir, assets_dir):
+    """Process SR models (wakenet and multinet) and generate srmodels.bin"""
+    if not wakenet_model_dirs and not multinet_model_dirs:
         return None
     
-    # Copy input directory to build directory
-    wakenet_build_dir = os.path.join(build_dir, "wakenet_model")
-    if os.path.exists(wakenet_build_dir):
-        shutil.rmtree(wakenet_build_dir)
-    copy_directory(wakenet_model_dir, os.path.join(wakenet_build_dir, os.path.basename(wakenet_model_dir)))
+    # Create SR models build directory
+    sr_models_build_dir = os.path.join(build_dir, "srmodels")
+    if os.path.exists(sr_models_build_dir):
+        shutil.rmtree(sr_models_build_dir)
+    os.makedirs(sr_models_build_dir)
+    
+    models_processed = 0
+    
+    # Copy wakenet models if available
+    if wakenet_model_dirs:
+        for wakenet_model_dir in wakenet_model_dirs:
+            wakenet_name = os.path.basename(wakenet_model_dir)
+            wakenet_dst = os.path.join(sr_models_build_dir, wakenet_name)
+            if copy_directory(wakenet_model_dir, wakenet_dst):
+                models_processed += 1
+                print(f"Added wakenet model: {wakenet_name}")
+    
+    # Copy multinet models if available
+    if multinet_model_dirs:
+        for multinet_model_dir in multinet_model_dirs:
+            multinet_name = os.path.basename(multinet_model_dir)
+            multinet_dst = os.path.join(sr_models_build_dir, multinet_name)
+            if copy_directory(multinet_model_dir, multinet_dst):
+                models_processed += 1
+                print(f"Added multinet model: {multinet_name}")
+    
+    if models_processed == 0:
+        print("Warning: No SR models were successfully processed")
+        return None
     
     # Use pack_models function to generate srmodels.bin
-    srmodels_output = os.path.join(wakenet_build_dir, "srmodels.bin")
+    srmodels_output = os.path.join(sr_models_build_dir, "srmodels.bin")
     try:
-        pack_models(wakenet_build_dir, "srmodels.bin")
+        pack_models(sr_models_build_dir, "srmodels.bin")
         print(f"Generated: {srmodels_output}")
         # Copy srmodels.bin to assets directory
         copy_file(srmodels_output, os.path.join(assets_dir, "srmodels.bin"))
@@ -250,7 +272,7 @@ def process_extra_files(extra_files_dir, assets_dir):
     return extra_files_list
 
 
-def generate_index_json(assets_dir, srmodels, text_font, emoji_collection, extra_files=None):
+def generate_index_json(assets_dir, srmodels, text_font, emoji_collection, extra_files=None, multinet_model_info=None):
     """Generate index.json file"""
     index_data = {
         "version": 1
@@ -267,6 +289,9 @@ def generate_index_json(assets_dir, srmodels, text_font, emoji_collection, extra
     
     if extra_files:
         index_data["extra_files"] = extra_files
+    
+    if multinet_model_info:
+        index_data["multinet_model"] = multinet_model_info
     
     # Write index.json
     index_path = os.path.join(assets_dir, "index.json")
@@ -409,12 +434,12 @@ def pack_assets_simple(target_path, include_path, out_file, assets_path, max_nam
 
 def read_wakenet_from_sdkconfig(sdkconfig_path):
     """
-    Read wakenet model from sdkconfig (based on movemodel.py logic)
-    Returns the wakenet model name or None if no wakenet is configured
+    Read wakenet models from sdkconfig (based on movemodel.py logic)
+    Returns a list of wakenet model names
     """
     if not os.path.exists(sdkconfig_path):
         print(f"Warning: sdkconfig file not found: {sdkconfig_path}")
-        return None
+        return []
         
     models = []
     with io.open(sdkconfig_path, "r") as f:
@@ -430,23 +455,211 @@ def read_wakenet_from_sdkconfig(sdkconfig_path):
                 model_name = label.split("_SR_WN_")[-1].lower()
                 models.append(model_name)
 
-    # Return the first model found, or None if no models
-    return models[0] if models else None
+    return models
 
 
-def get_wakenet_model_path(model_name, esp_sr_model_path):
+def read_multinet_from_sdkconfig(sdkconfig_path):
     """
-    Get the full path to the wakenet model directory
+    Read multinet models from sdkconfig (based on movemodel.py logic)
+    Returns a list of multinet model names
     """
-    if not model_name:
+    if not os.path.exists(sdkconfig_path):
+        print(f"Warning: sdkconfig file not found: {sdkconfig_path}")
+        return []
+        
+    with io.open(sdkconfig_path, "r") as f:
+        models_string = ''
+        for label in f:
+            label = label.strip("\n")
+            if 'CONFIG_SR_MN' in label and label[0] != '#':
+                models_string += label
+
+    models = []
+    if "CONFIG_SR_MN_CN_MULTINET3_SINGLE_RECOGNITION" in models_string:
+        models.append('mn3_cn')
+    elif "CONFIG_SR_MN_CN_MULTINET4_5_SINGLE_RECOGNITION_QUANT8" in models_string:
+        models.append('mn4q8_cn')
+    elif "CONFIG_SR_MN_CN_MULTINET4_5_SINGLE_RECOGNITION" in models_string:
+        models.append('mn4_cn')
+    elif "CONFIG_SR_MN_CN_MULTINET5_RECOGNITION_QUANT8" in models_string:
+        models.append('mn5q8_cn')
+    elif "CONFIG_SR_MN_CN_MULTINET6_QUANT" in models_string:
+        models.append('mn6_cn')
+    elif "CONFIG_SR_MN_CN_MULTINET6_AC_QUANT" in models_string:
+        models.append('mn6_cn_ac')
+    elif "CONFIG_SR_MN_CN_MULTINET7_QUANT" in models_string:
+        models.append('mn7_cn')
+    elif "CONFIG_SR_MN_CN_MULTINET7_AC_QUANT" in models_string:
+        models.append('mn7_cn_ac')
+
+    if "CONFIG_SR_MN_EN_MULTINET5_SINGLE_RECOGNITION_QUANT8" in models_string:
+        models.append('mn5q8_en')
+    elif "CONFIG_SR_MN_EN_MULTINET5_SINGLE_RECOGNITION" in models_string:
+        models.append('mn5_en')
+    elif "CONFIG_SR_MN_EN_MULTINET6_QUANT" in models_string:
+        models.append('mn6_en')
+    elif "CONFIG_SR_MN_EN_MULTINET7_QUANT" in models_string:
+        models.append('mn7_en')
+
+    if "MULTINET6" in models_string or "MULTINET7" in models_string:
+        models.append('fst')
+
+    return models
+
+
+def read_wake_word_type_from_sdkconfig(sdkconfig_path):
+    """
+    Read wake word type configuration from sdkconfig
+    Returns a dict with wake word type info
+    """
+    if not os.path.exists(sdkconfig_path):
+        print(f"Warning: sdkconfig file not found: {sdkconfig_path}")
+        return {
+            'use_esp_wake_word': False,
+            'use_afe_wake_word': False,
+            'use_custom_wake_word': False,
+            'wake_word_disabled': True
+        }
+        
+    config_values = {
+        'use_esp_wake_word': False,
+        'use_afe_wake_word': False,
+        'use_custom_wake_word': False,
+        'wake_word_disabled': False
+    }
+    
+    with io.open(sdkconfig_path, "r") as f:
+        for line in f:
+            line = line.strip("\n")
+            if line.startswith('#'):
+                continue
+                
+            # Check for wake word type configuration
+            if 'CONFIG_USE_ESP_WAKE_WORD=y' in line:
+                config_values['use_esp_wake_word'] = True
+            elif 'CONFIG_USE_AFE_WAKE_WORD=y' in line:
+                config_values['use_afe_wake_word'] = True
+            elif 'CONFIG_USE_CUSTOM_WAKE_WORD=y' in line:
+                config_values['use_custom_wake_word'] = True
+            elif 'CONFIG_WAKE_WORD_DISABLED=y' in line:
+                config_values['wake_word_disabled'] = True
+    
+    return config_values
+
+
+def read_custom_wake_word_from_sdkconfig(sdkconfig_path):
+    """
+    Read custom wake word configuration from sdkconfig
+    Returns a dict with custom wake word info or None if not configured
+    """
+    if not os.path.exists(sdkconfig_path):
+        print(f"Warning: sdkconfig file not found: {sdkconfig_path}")
+        return None
+        
+    config_values = {}
+    with io.open(sdkconfig_path, "r") as f:
+        for line in f:
+            line = line.strip("\n")
+            if line.startswith('#') or '=' not in line:
+                continue
+                
+            # Check for custom wake word configuration
+            if 'CONFIG_USE_CUSTOM_WAKE_WORD=y' in line:
+                config_values['use_custom_wake_word'] = True
+            elif 'CONFIG_CUSTOM_WAKE_WORD=' in line and not line.startswith('#'):
+                # Extract string value (remove quotes)
+                value = line.split('=', 1)[1].strip('"')
+                config_values['wake_word'] = value
+            elif 'CONFIG_CUSTOM_WAKE_WORD_DISPLAY=' in line and not line.startswith('#'):
+                # Extract string value (remove quotes)
+                value = line.split('=', 1)[1].strip('"')
+                config_values['display'] = value
+            elif 'CONFIG_CUSTOM_WAKE_WORD_THRESHOLD=' in line and not line.startswith('#'):
+                # Extract numeric value
+                value = line.split('=', 1)[1]
+                try:
+                    config_values['threshold'] = int(value)
+                except ValueError:
+                    try:
+                        config_values['threshold'] = float(value)
+                    except ValueError:
+                        print(f"Warning: Invalid threshold value: {value}")
+                        config_values['threshold'] = 20  # default (will be converted to 0.2)
+    
+    # Return config only if custom wake word is enabled and required fields are present
+    if (config_values.get('use_custom_wake_word', False) and 
+        'wake_word' in config_values and 
+        'display' in config_values and 
+        'threshold' in config_values):
+        return {
+            'wake_word': config_values['wake_word'],
+            'display': config_values['display'],
+            'threshold': config_values['threshold'] / 100.0  # Convert to decimal (20 -> 0.2)
+        }
+    
+    return None
+
+
+def get_language_from_multinet_models(multinet_models):
+    """
+    Determine language from multinet model names
+    Returns 'cn', 'en', or None
+    """
+    if not multinet_models:
         return None
     
-    wakenet_model_path = os.path.join(esp_sr_model_path, 'wakenet_model', model_name)
-    if os.path.exists(wakenet_model_path):
-        return wakenet_model_path
+    # Check for Chinese models
+    cn_indicators = ['_cn', 'cn_']
+    en_indicators = ['_en', 'en_']
+    
+    has_cn = any(any(indicator in model for indicator in cn_indicators) for model in multinet_models)
+    has_en = any(any(indicator in model for indicator in en_indicators) for model in multinet_models)
+    
+    # If both or neither, default to cn
+    if has_cn and not has_en:
+        return 'cn'
+    elif has_en and not has_cn:
+        return 'en'
     else:
-        print(f"Warning: Wakenet model directory not found: {wakenet_model_path}")
-        return None
+        return 'cn'  # Default to Chinese
+
+
+def get_wakenet_model_paths(model_names, esp_sr_model_path):
+    """
+    Get the full paths to the wakenet model directories
+    Returns a list of valid model paths
+    """
+    if not model_names:
+        return []
+    
+    valid_paths = []
+    for model_name in model_names:
+        wakenet_model_path = os.path.join(esp_sr_model_path, 'wakenet_model', model_name)
+        if os.path.exists(wakenet_model_path):
+            valid_paths.append(wakenet_model_path)
+        else:
+            print(f"Warning: Wakenet model directory not found: {wakenet_model_path}")
+    
+    return valid_paths
+
+
+def get_multinet_model_paths(model_names, esp_sr_model_path):
+    """
+    Get the full paths to the multinet model directories
+    Returns a list of valid model paths
+    """
+    if not model_names:
+        return []
+    
+    valid_paths = []
+    for model_name in model_names:
+        multinet_model_path = os.path.join(esp_sr_model_path, 'multinet_model', model_name)
+        if os.path.exists(multinet_model_path):
+            valid_paths.append(multinet_model_path)
+        else:
+            print(f"Warning: Multinet model directory not found: {multinet_model_path}")
+    
+    return valid_paths
 
 
 def get_text_font_path(builtin_text_font, xiaozhi_fonts_path):
@@ -485,7 +698,7 @@ def get_emoji_collection_path(default_emoji_collection, xiaozhi_fonts_path):
         return None
 
 
-def build_assets_integrated(wakenet_model_path, text_font_path, emoji_collection_path, extra_files_path, output_path):
+def build_assets_integrated(wakenet_model_paths, multinet_model_paths, text_font_path, emoji_collection_path, extra_files_path, output_path, multinet_model_info=None):
     """
     Build assets using integrated functions (no external dependencies)
     """
@@ -503,13 +716,13 @@ def build_assets_integrated(wakenet_model_path, text_font_path, emoji_collection
         print("Starting to build assets...")
         
         # Process each component
-        srmodels = process_wakenet_model(wakenet_model_path, temp_build_dir, assets_dir) if wakenet_model_path else None
+        srmodels = process_sr_models(wakenet_model_paths, multinet_model_paths, temp_build_dir, assets_dir) if (wakenet_model_paths or multinet_model_paths) else None
         text_font = process_text_font(text_font_path, assets_dir) if text_font_path else None
         emoji_collection = process_emoji_collection(emoji_collection_path, assets_dir) if emoji_collection_path else None
         extra_files = process_extra_files(extra_files_path, assets_dir) if extra_files_path else None
         
         # Generate index.json
-        generate_index_json(assets_dir, srmodels, text_font, emoji_collection, extra_files)
+        generate_index_json(assets_dir, srmodels, text_font, emoji_collection, extra_files, multinet_model_info)
         
         # Generate config.json for packing
         config_path = generate_config_json(temp_build_dir, assets_dir)
@@ -558,19 +771,17 @@ def main():
     
     args = parser.parse_args()
     
-    # Get script directory (not needed anymore but keep for future use)
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    
     # Set default paths if not provided
-    if not args.esp_sr_model_path:
-        # Default ESP-SR model path relative to project root
-        project_root = os.path.dirname(os.path.dirname(script_dir))
-        args.esp_sr_model_path = os.path.join(project_root, "managed_components", "espressif__esp-sr", "model")
-    
-    if not args.xiaozhi_fonts_path:
-        # Default xiaozhi-fonts path relative to project root
-        project_root = os.path.dirname(os.path.dirname(script_dir))
-        args.xiaozhi_fonts_path = os.path.join(project_root, "managed_components", "78__xiaozhi-fonts")
+    if not args.esp_sr_model_path or not args.xiaozhi_fonts_path:
+        # Calculate project root from script location
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(script_dir)
+        
+        if not args.esp_sr_model_path:
+            args.esp_sr_model_path = os.path.join(project_root, "managed_components", "espressif__esp-sr", "model")
+        
+        if not args.xiaozhi_fonts_path:
+            args.xiaozhi_fonts_path = os.path.join(project_root, "components", "xiaozhi-fonts")
     
     print("Building default assets...")
     print(f"  sdkconfig: {args.sdkconfig}")
@@ -578,9 +789,40 @@ def main():
     print(f"  emoji_collection: {args.emoji_collection}")
     print(f"  output: {args.output}")
     
-    # Read wakenet model from sdkconfig
-    wakenet_model_name = read_wakenet_from_sdkconfig(args.sdkconfig)
-    wakenet_model_path = get_wakenet_model_path(wakenet_model_name, args.esp_sr_model_path)
+    # Read wake word type configuration from sdkconfig
+    wake_word_config = read_wake_word_type_from_sdkconfig(args.sdkconfig)
+    
+    # Read SR models from sdkconfig
+    wakenet_model_names = read_wakenet_from_sdkconfig(args.sdkconfig)
+    multinet_model_names = read_multinet_from_sdkconfig(args.sdkconfig)
+    
+    # Apply wake word logic to decide which models to package
+    wakenet_model_paths = []
+    multinet_model_paths = []
+    
+    # 1. Only package wakenet models if USE_ESP_WAKE_WORD=y or USE_AFE_WAKE_WORD=y
+    if wake_word_config['use_esp_wake_word'] or wake_word_config['use_afe_wake_word']:
+        wakenet_model_paths = get_wakenet_model_paths(wakenet_model_names, args.esp_sr_model_path)
+    elif wakenet_model_names:
+        print(f"  Note: Found wakenet models {wakenet_model_names} but wake word type is not ESP/AFE, skipping")
+    
+    # 2. Error check: if USE_CUSTOM_WAKE_WORD=y but no multinet models selected, report error
+    if wake_word_config['use_custom_wake_word'] and not multinet_model_names:
+        print("Error: USE_CUSTOM_WAKE_WORD is enabled but no multinet models are selected in sdkconfig")
+        print("Please select appropriate CONFIG_SR_MN_* options in menuconfig, or disable USE_CUSTOM_WAKE_WORD")
+        sys.exit(1)
+    
+    # 3. Only package multinet models if USE_CUSTOM_WAKE_WORD=y
+    if wake_word_config['use_custom_wake_word']:
+        multinet_model_paths = get_multinet_model_paths(multinet_model_names, args.esp_sr_model_path)
+    elif multinet_model_names:
+        print(f"  Note: Found multinet models {multinet_model_names} but USE_CUSTOM_WAKE_WORD is disabled, skipping")
+    
+    # Print model information (only for models that will actually be packaged)
+    if wakenet_model_paths:
+        print(f"  wakenet models: {', '.join(wakenet_model_names)} (will be packaged)")
+    if multinet_model_paths:
+        print(f"  multinet models: {', '.join(multinet_model_names)} (will be packaged)")
     
     # Get text font path if needed
     text_font_path = get_text_font_path(args.builtin_text_font, args.xiaozhi_fonts_path)
@@ -591,9 +833,34 @@ def main():
     # Get extra files path if provided
     extra_files_path = args.extra_files
     
+    # Read custom wake word configuration
+    custom_wake_word_config = read_custom_wake_word_from_sdkconfig(args.sdkconfig)
+    multinet_model_info = None
+    
+    if custom_wake_word_config and multinet_model_paths:
+        # Determine language from multinet models
+        language = get_language_from_multinet_models(multinet_model_names)
+        
+        # Build multinet_model info structure
+        multinet_model_info = {
+            "language": language,
+            "duration": 3000,  # Default duration in ms
+            "threshold": custom_wake_word_config['threshold'],
+            "commands": [
+                {
+                    "command": custom_wake_word_config['wake_word'],
+                    "text": custom_wake_word_config['display'],
+                    "action": "wake"
+                }
+            ]
+        }
+        print(f"  custom wake word: {custom_wake_word_config['wake_word']} ({custom_wake_word_config['display']})")
+        print(f"  wake word language: {language}")
+        print(f"  wake word threshold: {custom_wake_word_config['threshold']}")
+    
     # Check if we have anything to build
-    if not wakenet_model_path and not text_font_path and not emoji_collection_path and not extra_files_path:
-        print("Warning: No assets to build (no wakenet, text font, emoji collection, or extra files)")
+    if not wakenet_model_paths and not multinet_model_paths and not text_font_path and not emoji_collection_path and not extra_files_path and not multinet_model_info:
+        print("Warning: No assets to build (no SR models, text font, emoji collection, extra files, or custom wake word)")
         # Create an empty assets.bin file
         os.makedirs(os.path.dirname(args.output), exist_ok=True)
         with open(args.output, 'wb') as f:
@@ -602,8 +869,8 @@ def main():
         return
     
     # Build the assets
-    success = build_assets_integrated(wakenet_model_path, text_font_path, emoji_collection_path, 
-                                     extra_files_path, args.output)
+    success = build_assets_integrated(wakenet_model_paths, multinet_model_paths, text_font_path, emoji_collection_path, 
+                                     extra_files_path, args.output, multinet_model_info)
     
     if not success:
         sys.exit(1)
