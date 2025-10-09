@@ -123,6 +123,7 @@ bool Assets::Apply() {
         }
     }
     
+#ifdef CONFIG_WAKE_WORD_DISABLED
     cJSON* srmodels = cJSON_GetObjectItem(root, "srmodels");
     if (cJSON_IsString(srmodels)) {
         std::string srmodels_file = srmodels->valuestring;
@@ -142,6 +143,7 @@ bool Assets::Apply() {
             ESP_LOGE(TAG, "The srmodels file %s is not found", srmodels_file.c_str());
         }
     }
+#endif
 
 #ifdef HAVE_LVGL
     auto& theme_manager = LvglThemeManager::GetInstance();

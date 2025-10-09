@@ -70,8 +70,12 @@ function(find_component_by_pattern PATTERN COMPONENT_VAR PATH_VAR)
 endfunction()
 
 # Set default BUILTIN_TEXT_FONT and BUILTIN_ICON_FONT
-set(BUILTIN_TEXT_FONT font_puhui_14_1)
-set(BUILTIN_ICON_FONT font_awesome_14_1)
+if(NOT BUILTIN_TEXT_FONT)
+    set(BUILTIN_TEXT_FONT font_puhui_14_1)
+endif()
+if(NOT BUILTIN_ICON_FONT)
+    set(BUILTIN_ICON_FONT font_awesome_14_1)
+endif()
 
 if(CONFIG_BOARD_PATH)
 get_filename_component(BOARD_TYPE ${CONFIG_BOARD_PATH} NAME)
@@ -315,8 +319,8 @@ function(build_default_assets_bin)
     )
     
     # Add builtin text font if defined
-    if(BUILTIN_TEXT_FONT)
-        list(APPEND BUILD_ARGS "--builtin_text_font" "${BUILTIN_TEXT_FONT}")
+    if(DEFAULT_TEXT_FONT)
+        list(APPEND BUILD_ARGS "--builtin_text_font" "${DEFAULT_TEXT_FONT}")
     endif()
     
     # Add default emoji collection if defined
@@ -331,6 +335,8 @@ function(build_default_assets_bin)
     
     list(APPEND BUILD_ARGS "--esp_sr_model_path" "${ESP_SR_MODEL_PATH}")
     list(APPEND BUILD_ARGS "--xiaozhi_fonts_path" "${XIAOZHI_FONTS_PATH}")
+
+    message(STATUS "args: ${BUILD_ARGS}")
     
     # Create custom command to build assets
     add_custom_command(
