@@ -1204,24 +1204,56 @@ void Application::ShowOtaInfo(const std::string& code,const std::string& ip) {
 #endif
 
 void Application::SendChatText(const std::string &text) {
-    if (protocol_ == nullptr) {
-        return;
-    }
-    if (device_state_ != kDeviceStateListening) {
-        if (!protocol_->IsAudioChannelOpened()) {
-            Application::GetInstance().SetDeviceState(kDeviceStateConnecting);
-            if (!protocol_->OpenAudioChannel()) {
-                ESP_LOGE(TAG, "Failed to open audio channel");
-                Application::GetInstance().SetDeviceState(kDeviceStateIdle);
-                return;
-            }
-            Application::GetInstance().SetDeviceState(kDeviceStateListening);
-        }
-    }
-    Schedule([this, text]() {
-        if (protocol_) {
-            protocol_->SendText(R"a({"type": "listen","state": "detect","text": ")a" +
-                            text + R"a(","source": "text"})a");
-        }
-    });
+  if (protocol_ == nullptr) {
+    return;
+  }
+  if (protocol_->IsAudioChannelOpened()==false) {
+    protocol_->OpenAudioChannel();
+  }
+//   if (device_state_ == kDeviceStateIdle) {
+//     ToggleChatState();
+//   } else 
+  if (device_state_ == kDeviceStateSpeaking) {
+    Schedule([this]() { AbortSpeaking(kAbortReasonNone); });
+  }
+  char *text_str = (char*)malloc(strlen(text.c_str()) + 1);//防止被释放
+  strcpy(text_str, text.c_str());
+  xTaskCreate(
+      [](void *arg) {
+        auto text_str = (const char*)arg;
+        auto &app = Application::GetInstance();
+        // // 检查是否成功切换到listening状态(最多检查5次)
+        // for (int i = 0; i < 5; i++) {
+        //   auto device_state = app.GetDeviceState();
+        //   if (device_state == kDeviceStateListening) {
+        //     break;
+        //   }
+        //   vTaskDelay(pdMS_TO_TICKS(60));
+        // }
+        // 发送文本
+        app.Schedule([text_str]() {
+          auto &app = Application::GetInstance();
+          auto &protocol_ = app.protocol_;
+          auto &audio_service_ = app.audio_service_;
+          if (protocol_) {
+            auto codec = Board::GetInstance().GetAudioCodec();
+            //   codec->EnableInput(true);
+            //   codec->EnableOutput(true);
+            auto packet = audio_service_.GetMutePacket();
+            protocol_->SendAudio(std::move(packet));
+            auto json = cJSON_CreateObject();
+            cJSON_AddStringToObject(json, "type", "listen");
+            cJSON_AddStringToObject(json, "state", "detect");
+            cJSON_AddStringToObject(json, "text", text_str);
+            cJSON_GetStringValue(json);
+            auto json_str = cJSON_Print(json);
+            ESP_LOGI(TAG, "send chat text json:%s", json_str);
+            protocol_->SendText(std::string(json_str));
+            cJSON_Delete(json);
+            free((void*)text_str);// 释放内存
+          }
+        });
+        vTaskDelete(NULL);
+      },
+      "send_chat_text", 1024 * 4, (void*)text_str, 5, NULL);
 }
