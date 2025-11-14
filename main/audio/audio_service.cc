@@ -231,8 +231,10 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
 bool AudioService::ReadAudioData(std::vector<uint8_t>& data, int sample_rate, int samples) {
     auto codec = Board::GetInstance().GetAudioCodec();
     if (!codec->input_enabled()) {
-        codec_->EnableInput(true);
+        esp_timer_stop(audio_power_timer_);
         esp_timer_start_periodic(audio_power_timer_, AUDIO_POWER_CHECK_INTERVAL_MS * 1000);
+        last_input_time_ = std::chrono::steady_clock::now();
+        codec_->EnableInput(true);        
     }
 
     data.resize(samples);

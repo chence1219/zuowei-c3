@@ -283,7 +283,7 @@ void __uart_init(gpio_num_t tx, gpio_num_t rx){
     uart_param_config(UART_NUM, &uart_config);
     uart_set_pin(UART_NUM, tx, rx, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
 
-    xTaskCreate(__uart_task, "__uart_task", CONFIG_VB6824_UART_TASK_STACK_SIZE, NULL, configMAX_PRIORITIES-2, NULL);
+    xTaskCreate(__uart_task, "__uart_task", CONFIG_VB6824_UART_TASK_STACK_SIZE, NULL, 9, NULL);
 }
 
 #ifdef CONFIG_VB6824_SEND_USE_TASK
@@ -482,6 +482,7 @@ void vb6824_audio_enable_input(bool enable){
 
     if(g_input_enabled == false){
         while(1){
+            xSemaphoreTake(g_rx_mux, portMAX_DELAY);
             size_t item_size = 0;
 #if (defined(CONFIG_VB6824_TYPE_OPUS_16K_20MS) || defined(CONFIG_VB6824_TYPE_OPUS_16K_20MS_PCM_16K))
             uint8_t *item = (uint8_t *)xRingbufferReceive(g_rx_ringbuffer, &item_size, 0);
@@ -490,7 +491,9 @@ void vb6824_audio_enable_input(bool enable){
 #endif
             if (item != NULL) {
                 vRingbufferReturnItem(g_rx_ringbuffer, (void *)item);
+                xSemaphoreGive(g_rx_mux);
             }else{
+                xSemaphoreGive(g_rx_mux);
                 break;
             }
         }
@@ -544,9 +547,10 @@ void vb6824_audio_write(uint8_t *data, uint16_t len){
 }
 
 uint16_t vb6824_audio_read(uint8_t *data, uint16_t size){
+    int32_t timeout = -1;
     size_t item_size = 0;
     size_t items_waiting = 0;
-    vRingbufferGetInfo(g_rx_ringbuffer, NULL, NULL, NULL, NULL, &items_waiting);
+    uint32_t start_time = xTaskGetTickCount()/portTICK_PERIOD_MS;
 #if (defined(CONFIG_VB6824_TYPE_OPUS_16K_20MS) || defined(CONFIG_VB6824_TYPE_OPUS_16K_20MS_PCM_16K))
     // if(items_waiting > 0){
     while (g_input_enabled) {
@@ -564,6 +568,11 @@ uint16_t vb6824_audio_read(uint8_t *data, uint16_t size){
             break;
         }
         xSemaphoreGive(g_rx_mux);
+        if(timeout != -1 && ((xTaskGetTickCount()/portTICK_PERIOD_MS) - start_time) > timeout){
+            break;
+        }else{
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
     }
     // }
 #else
@@ -578,6 +587,11 @@ uint16_t vb6824_audio_read(uint8_t *data, uint16_t size){
             break;
         }
         xSemaphoreGive(g_rx_mux);
+        if(timeout != -1 && ((xTaskGetTickCount()/portTICK_PERIOD_MS) - start_time) > timeout){
+            break;
+        }else{
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
     }
     // }
 #endif
