@@ -6,7 +6,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
-
+#include "vb_api.h"
 #include "driver/gpio.h"
 
 typedef enum {
@@ -18,6 +18,7 @@ typedef enum {
     VB6824_EVT_OTA_FAIL = 6,
 } vb6824_evt_t;
 
+typedef void (*vb_voice_fft_cb_t)(int16_t *data, uint16_t len, void *arg);
 typedef void (*vb_voice_command_cb_t)(char *command, uint16_t len, void *arg);
 typedef void (*vb_voice_event_cb_t)(vb6824_evt_t event_id, uint32_t data, void *arg);
 
@@ -26,6 +27,7 @@ int jl_ws_is_start();
 int jl_ws_start(char *code);
 bool vb6824_is_support_ota();
 
+void vb6824_register_voice_fft_cb(vb_voice_fft_cb_t cb, void *arg);
 void vb6824_register_voice_command_cb(vb_voice_command_cb_t cb, void *arg);
 void vb6824_register_event_cb(vb_voice_event_cb_t cb, void *arg);
 

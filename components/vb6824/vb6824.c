@@ -85,6 +85,15 @@ typedef enum
     VB6824_CMD_SEND_GET_WAKEUP_WORD = 0x0207,
     VB6824_CMD_SEND_DEEP_SLEEP = 0x0208,
 }vb6824_cmd_t;
+
+typedef struct {
+    volatile int        in_use;     // 是否有阻塞调用在等待
+    vb6824_cmd_t        cmd;        // 等待的 cmd
+    uint8_t            *buf;        // malloc 出来的接收缓冲区
+    uint16_t            len;        // 接收数据长度
+    SemaphoreHandle_t   done_sem;   // 完成信号量
+} vb6824_sync_ctx_t;
+
 typedef enum
 {
     VB6824_MODE_AUDIO = 0,
@@ -95,6 +104,7 @@ static QueueHandle_t g_uart_queue = NULL;
 static RingbufHandle_t g_rx_ringbuffer = NULL;
 static RingbufHandle_t g_tx_ringbuffer = NULL;
 static vb6824_mode_t s_mode = VB6824_MODE_AUDIO;
+static vb6824_sync_ctx_t g_sync_ctx = {0};
 
 static SemaphoreHandle_t g_rx_mux = NULL;
 
@@ -230,6 +240,77 @@ void __frame_send(vb6824_cmd_t cmd, uint8_t *data, uint16_t len){
         } 
     }
 }
+
+int frame_send_block(vb6824_cmd_t cmd,
+                     const uint8_t *data,
+                     uint16_t len,
+                     uint8_t **out_buf,
+                     uint16_t *out_len,
+                     uint32_t timeout_ms)
+{
+    if (!out_buf || !out_len) {
+        return -3;
+    }
+
+    // 不可重入：已经有一个阻塞调用在等待时直接返回
+    if (g_sync_ctx.in_use) {
+        ESP_LOGW(TAG, "frame_send_block busy");
+        return -2;
+    }
+
+    g_sync_ctx.in_use = 1;
+    g_sync_ctx.cmd = cmd;
+    g_sync_ctx.buf = NULL;
+    g_sync_ctx.len = 0;
+
+    // 把旧的信号量状态清掉（防止上一轮的残留）
+    if (g_sync_ctx.done_sem) {
+        while (xSemaphoreTake(g_sync_ctx.done_sem, 0) == pdTRUE) {
+            // drain
+        }
+    }
+
+    // 发送请求
+    __frame_send(cmd, (uint8_t *)data, len);
+
+    // 转换超时时间为 ticks
+    TickType_t ticks = pdMS_TO_TICKS(timeout_ms);
+
+    // 阻塞等待回调里的 xSemaphoreGive()
+    if (xSemaphoreTake(g_sync_ctx.done_sem, ticks) != pdTRUE) {
+        // 超时
+        ESP_LOGW(TAG, "frame_send_block timeout, cmd=0x%04X", cmd);
+        g_sync_ctx.in_use = 0;
+        if (g_sync_ctx.buf) {
+            free(g_sync_ctx.buf);
+            g_sync_ctx.buf = NULL;
+        }
+        g_sync_ctx.len = 0;
+        return -1;
+    }
+
+    // 收到回包
+    if (!g_sync_ctx.buf && g_sync_ctx.len != 0) {
+        // 理论上不会出现，保险判断
+        ESP_LOGE(TAG, "no buffer but len=%u", g_sync_ctx.len);
+        g_sync_ctx.in_use = 0;
+        g_sync_ctx.len = 0;
+        return -3;
+    }
+
+    *out_buf = g_sync_ctx.buf;  // 由调用方 free()
+    *out_len = g_sync_ctx.len;
+
+    int ret_len = g_sync_ctx.len;
+
+    // 清理上下文，但不 free buf（给上层）
+    g_sync_ctx.buf = NULL;
+    g_sync_ctx.len = 0;
+    g_sync_ctx.in_use = 0;
+
+    return ret_len;
+}
+
 
 void __uart_task(void *arg) {
     uart_event_t event;
@@ -400,6 +481,32 @@ void __vb6824_frame_cb(uint8_t *data, uint16_t len){
     frame->cmd = SWAP_16(frame->cmd);
     frame->data[frame->len] = 0;
 
+    if (g_sync_ctx.in_use && frame->cmd == g_sync_ctx.cmd) {
+        uint8_t *buf = NULL;
+        if (frame->len > 0) {
+            buf = (uint8_t *)malloc(frame->len);
+            if (buf == NULL) {
+                ESP_LOGE(TAG, "malloc %u failed for sync resp", frame->len);
+                // malloc 失败也要唤醒等待者，让它知道出错了
+                g_sync_ctx.len = 0;
+                g_sync_ctx.buf = NULL;
+                if (g_sync_ctx.done_sem) {
+                    xSemaphoreGive(g_sync_ctx.done_sem);
+                }
+                return;
+            }
+            memcpy(buf, frame->data, frame->len);
+        }        
+        g_sync_ctx.buf = buf;
+        g_sync_ctx.len = frame->len;
+
+        if (g_sync_ctx.done_sem) {
+            xSemaphoreGive(g_sync_ctx.done_sem);
+        }
+        return; // 已交阻塞接口消费，不再走后面的异步处理
+    }
+
+
     switch (frame->cmd)
     {
     case VB6824_CMD_RECV_PCM:{
@@ -463,8 +570,10 @@ void __vb6824_frame_cb(uint8_t *data, uint16_t len){
         memset(s_wakeup_word, 0, sizeof(s_wakeup_word));
         strncpy(s_wakeup_word, (char*)frame->data, frame->len);
         break;
-    
-    default:
+    default:{
+        extern void vb_api_recv_handler(uint16_t cmd, uint8_t *data, uint16_t len);
+        vb_api_recv_handler(frame->cmd, frame->data, frame->len);
+    }
         break;
     }
 }
@@ -686,8 +795,9 @@ void vb6824_deep_sleep_start(void){
     ESP_LOGW(TAG, "vb6824_deep_sleep_start");
     __frame_send(VB6824_CMD_SEND_DEEP_SLEEP, NULL, 0);
 }
-
+extern void vb_api_init(gpio_num_t tx, gpio_num_t rx);
 void vb6824_init(gpio_num_t tx, gpio_num_t rx){
+    vb_api_init(tx, rx);
     __uart_init(tx, rx);
 
 #if defined(CONFIG_VB6824_OTA_SUPPORT) && CONFIG_VB6824_OTA_SUPPORT == 1
@@ -695,6 +805,12 @@ void vb6824_init(gpio_num_t tx, gpio_num_t rx){
 #endif
 
     g_rx_mux = xSemaphoreCreateMutex();
+
+    g_sync_ctx.done_sem = xSemaphoreCreateBinary();
+    assert(g_sync_ctx.done_sem != NULL);
+    g_sync_ctx.in_use = 0;
+    g_sync_ctx.buf = NULL;
+    g_sync_ctx.len = 0;
 
 #if defined(CONFIG_VB6824_TYPE_OPUS_16K_20MS)
     g_rx_ringbuffer = xRingbufferCreate(RECV_BUF_LENGTH, RINGBUF_TYPE_NOSPLIT);
@@ -724,7 +840,7 @@ void vb6824_init(gpio_num_t tx, gpio_num_t rx){
     }
 
 #ifdef CONFIG_VB6824_SEND_USE_TASK
-    xTaskCreate(__send_task, "__send_task", CONFIG_VB6824_SEND_TASK_STACK_SIZE, NULL, configMAX_PRIORITIES-2, NULL);
+    xTaskCreate(__send_task, "__send_task", CONFIG_VB6824_SEND_TASK_STACK_SIZE, NULL, 9, NULL);
 #else
     esp_timer_handle_t send_timer = NULL;
     esp_timer_create_args_t timer_args = {

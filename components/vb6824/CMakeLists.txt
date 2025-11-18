@@ -3,6 +3,7 @@ set(srcs )
 set(assets )
 list(APPEND srcs
         vb6824.c
+        vb_api.c
         )
 
 list(APPEND incs
