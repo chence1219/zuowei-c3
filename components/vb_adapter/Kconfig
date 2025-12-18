@@ -1,0 +1,59 @@
+menu "VB Adapter"
+    menu "UART Settings"
+        config VB_UART_PORT
+            int "uart num for esp-idf"
+            default 1
+
+        config VB_UART_QUEUE_SIZE
+            int "UART queue size"
+            default 16
+
+        config VB_UART_TX_BUFFER_SIZE
+            int "UART TX buffer size (must be greater than 1KB)"
+            range 1024 65536
+            default 2048
+
+        config VB_UART_RX_BUFFER_SIZE
+            int "UART RX buffer size (must be greater than 1KB)"
+            range 1024 65536
+            default 5120
+
+        config VB_UART_BAUD_RATE
+            int "UART baud rate"
+            default 2000000
+
+        config VB_UART_TASK_STACK_SIZE
+            int "uart task stack size"
+            default 3072 if IDF_TARGET_ESP32C2
+            default 4096
+    endmenu
+
+    config VB_AUDIO_INPUT_FRAME_LEN
+        int "Audio input frame length"
+        default 40
+        help
+            一个音频输入帧长度, 默认是40
+            
+    config VB_AUDIO_OUTPUT_FRAME_LEN
+        int "Audio output frame length"
+        default 320
+        help
+            一个音频输出帧长度, 默认是320
+
+    choice
+        prompt "Audio Send Method"
+        default VB_SEND_USE_TASK
+        help
+            Select the method for sending audio data: by task or by timer.
+        config VB_SEND_USE_TASK
+            bool "Send by Task (recommended)"
+        config VB_SEND_USE_TIMER
+            bool "Send by Timer"
+    endchoice
+
+    config VB_SEND_TASK_STACK_SIZE
+        int "audio send task stack size"
+        depends on VB_SEND_USE_TASK
+        default 2048
+
+endmenu
