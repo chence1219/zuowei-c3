@@ -39,7 +39,7 @@ static TickType_t s_last_keepalive_tick = 0;
 
 
 
-static int __on_keepalive(uint8_t *data, uint16_t len, void *arg)
+int __on_keepalive(uint8_t *data, uint16_t len, void *arg)
 {
     (void)data;
     (void)len;
@@ -47,7 +47,6 @@ static int __on_keepalive(uint8_t *data, uint16_t len, void *arg)
     s_last_keepalive_tick = xTaskGetTickCount();
     return 0;
 }
-VB_REGIST_CMD_EVT(VB_CMD_SYS_KEEPALIVE, __on_keepalive);
 
 // 每秒发送一次 KEEPALIVE，3 秒未收到则尝试唤醒从机
 static void vb_adapter_keepalive_task(void *arg)
@@ -73,7 +72,10 @@ static void vb_adapter_keepalive_task(void *arg)
                 s_wake_word = NULL;
             }
             
-            s_wake_word = strdup((char *)wakeup_word);
+            // s_wake_word = strdup((char *)wakeup_word);
+            s_wake_word = malloc(wakeup_word_len + 1);
+            memcpy(s_wake_word, wakeup_word, wakeup_word_len);
+            s_wake_word[wakeup_word_len] = '\0';
             free(wakeup_word);
             ESP_LOGI(TAG, "Get wake word: %s", s_wake_word);
             break;
@@ -130,4 +132,3 @@ void vb_adapter_init(gpio_num_t tx, gpio_num_t rx, vb_adapter_frame_cb_t cb, voi
     // 启动保活任务
     xTaskCreate(vb_adapter_keepalive_task, "vb_keepalive", 2048, NULL, 5, NULL);
 }
-

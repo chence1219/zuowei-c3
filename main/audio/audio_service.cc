@@ -344,7 +344,8 @@ void AudioService::AudioInputTask() {
         }
 
         ESP_LOGE(TAG, "Should not be here, bits: %lx", bits);
-        break;
+        // break;
+        continue;
     }
 
     ESP_LOGW(TAG, "Audio input task stopped");

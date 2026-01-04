@@ -55,9 +55,6 @@ static inline int __sum_bytes(const uint8_t *bytes, uint16_t size)
 static vb_protocol_send_cb_t s_send_cb      = NULL;
 static void                 *s_arg          = NULL;
 
-extern vb_cmd_evt_t __start_vb_cmd_evt[];
-extern vb_cmd_evt_t __stop_vb_cmd_evt[];
-
 // 阻塞发送上下文（仅允许单次阻塞调用）
 typedef struct {
     volatile int  in_use;
@@ -72,13 +69,11 @@ static vb_protocol_sync_ctx_t s_sync_ctx = {0};
 // 协议层解析完成后转给应用层的回调桥接
 static void vb_frame_cb(uint16_t cmd, uint8_t *data, uint16_t len)
 {
-    for (uint8_t* t = (uint8_t*)__start_vb_cmd_evt; t < (uint8_t*)__stop_vb_cmd_evt; t+=sizeof(vb_cmd_evt_t))
-    {
-        vb_cmd_evt_t *p = (vb_cmd_evt_t*)t;
-        
+    for (size_t i = 0; i < g_vb_cmd_evt_table_size; i++) {
+        const vb_cmd_evt_t *p = &g_vb_cmd_evt_table[i];
+
         // ESP_LOGI(TAG, "VB_CMD:%04x, evt_id:%04x", cmd, p->cmd);
-        if (p->cmd == cmd && p->evt_cb != NULL)
-        {
+        if (p->cmd == cmd && p->evt_cb != NULL) {
             p->evt_cb(data, len, s_arg);
             break;
         }
@@ -262,52 +257,56 @@ int vb_protocol_send_block(uint16_t cmd,
         return -2;
     }
 
-    s_sync_ctx.in_use   = 1;
-    s_sync_ctx.wait_cmd = cmd;
-    s_sync_ctx.buf      = NULL;
-    s_sync_ctx.len      = 0;
+    int try_cnt = 0;
+    int ret = -1;
 
-    if (cmd == VB_CMD_SEND_GET_WAKEUP_WORD)
-    {
-        s_sync_ctx.wait_cmd = VB_CMD_RECV_WAKEUP_WORD;
-    }
-    
+    for (try_cnt = 0; try_cnt < 3; ++try_cnt) {
+        s_sync_ctx.in_use   = 1;
+        s_sync_ctx.wait_cmd = cmd;
+        s_sync_ctx.buf      = NULL;
+        s_sync_ctx.len      = 0;
 
-    // 清理信号量残留
-    if (s_sync_ctx.done_sem) {
-        while (xSemaphoreTake(s_sync_ctx.done_sem, 0) == pdPASS) {
-            // drain
+        if (cmd == VB_CMD_SEND_GET_WAKEUP_WORD) {
+            s_sync_ctx.wait_cmd = VB_CMD_RECV_WAKEUP_WORD;
+        }
+
+        // 清理信号量残留
+        if (s_sync_ctx.done_sem) {
+            while (xSemaphoreTake(s_sync_ctx.done_sem, 0) == pdPASS) {
+                // drain
+            }
+        }
+
+        // 发送请求帧
+        vb_protocol_send(cmd, data, len);
+
+        // 等待响应
+        TickType_t ticks = (timeout_ms == 0) ? 0 : pdMS_TO_TICKS(timeout_ms);
+
+        if (xSemaphoreTake(s_sync_ctx.done_sem, ticks) == pdPASS) {
+            // 正常收到响应
+            *out_buf = s_sync_ctx.buf;  // 交给调用方 free()
+            *out_len = s_sync_ctx.len;
+
+            ret = s_sync_ctx.len;
+
+            s_sync_ctx.buf    = NULL;
+            s_sync_ctx.len    = 0;
+            s_sync_ctx.in_use = 0;
+
+            return ret;
+        } else {
+            // 超时
+            if (s_sync_ctx.buf) {
+                free(s_sync_ctx.buf);
+                s_sync_ctx.buf = NULL;
+            }
+            s_sync_ctx.len   = 0;
+            s_sync_ctx.in_use = 0;
+            // 继续尝试
         }
     }
 
-    // 发送请求帧
-    vb_protocol_send(cmd, data, len);
-
-    // 等待响应
-    TickType_t ticks = (timeout_ms == 0) ? 0 : pdMS_TO_TICKS(timeout_ms);
-
-    if (xSemaphoreTake(s_sync_ctx.done_sem, ticks) != pdPASS) {
-        // 超时
-        if (s_sync_ctx.buf) {
-            free(s_sync_ctx.buf);
-            s_sync_ctx.buf = NULL;
-        }
-        s_sync_ctx.len   = 0;
-        s_sync_ctx.in_use = 0;
-        return -1;
-    }
-
-    // 正常收到响应
-    *out_buf = s_sync_ctx.buf;  // 交给调用方 free()
-    *out_len = s_sync_ctx.len;
-
-    int ret = s_sync_ctx.len;
-
-    s_sync_ctx.buf    = NULL;
-    s_sync_ctx.len    = 0;
-    s_sync_ctx.in_use = 0;
-
-    return ret;
+    return -1;
 }
-
 

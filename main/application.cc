@@ -122,7 +122,7 @@ void Application::CheckAssetsVersion() {
     // Apply assets
     assets.Apply();
     display->SetChatMessage("system", "");
-    display->SetEmotion("microchip_ai");
+    display->SetEmotion("neutral");
 }
 
 void Application::CheckNewVersion(Ota& ota) {
@@ -459,6 +459,8 @@ void Application::StopListening() {
 }
 
 void Application::Start() {
+    Assets::GetInstance().Apply();
+
     auto& board = Board::GetInstance();
     SetDeviceState(kDeviceStateStarting);
 
@@ -994,53 +996,53 @@ void Application::StartListeningAndPlayHere(void) {
 }
 
 void Application::WakeWordInvoke(const std::string& wake_word) {
-    // if (device_state_ == kDeviceStateIdle) {
-    //     ToggleChatState();
-    //     Schedule([this, wake_word]() {
-    //         if (protocol_) {
-    //             auto packet = audio_service_.GetMutePacket();
-    //             protocol_->SendAudio(std::move(packet));
+    if (device_state_ == kDeviceStateIdle) {
+        ToggleChatState();
+        Schedule([this, wake_word]() {
+            if (protocol_) {
+                auto packet = audio_service_.GetMutePacket();
+                protocol_->SendAudio(std::move(packet));
 
-    //             protocol_->SendWakeWordDetected(wake_word); 
-    //         }
-    //     }); 
-    // } else if (device_state_ == kDeviceStateSpeaking) {
-    //     Schedule([this]() {
-    //         AbortSpeaking(kAbortReasonNone);
-    //     });
-    // } else if (device_state_ == kDeviceStateListening) {   
-    //     Schedule([this]() {
-    //         if (protocol_) {
-    //             protocol_->CloseAudioChannel();
-    //         }
-    //     });
+                protocol_->SendWakeWordDetected(wake_word); 
+            }
+        }); 
+    } else if (device_state_ == kDeviceStateSpeaking) {
+        Schedule([this]() {
+            AbortSpeaking(kAbortReasonNone);
+        });
+    } else if (device_state_ == kDeviceStateListening) {   
+        // Schedule([this]() {
+        //     if (protocol_) {
+        //         protocol_->CloseAudioChannel();
+        //     }
+        // });
+    }
+
+    // // 使用OnWakeWordDetected()的逻辑
+    // if (!protocol_) {
+    //     return;
     // }
 
-    // 使用OnWakeWordDetected()的逻辑
-    if (!protocol_) {
-        return;
-    }
-
-    if (device_state_ == kDeviceStateIdle) {
-        if (!protocol_->IsAudioChannelOpened()) {
-            SetDeviceState(kDeviceStateConnecting);
-            if (!protocol_->OpenAudioChannel()) {
-                return;
-            }
-        }
-        // 防止服务器还没拿到设备的UDP fd导致没有声音回复
-        auto packet = audio_service_.GetMutePacket();
-        protocol_->SendAudio(std::move(packet));
-        // 发送唤醒词
-        ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
-        protocol_->SendWakeWordDetected(wake_word);
-        SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);
-        // audio_service_.PlaySound(Lang::Sounds::OGG_POPUP);
-    } else if (device_state_ == kDeviceStateSpeaking) {
-        AbortSpeaking(kAbortReasonWakeWordDetected);
-    } else if (device_state_ == kDeviceStateActivating) {
-        SetDeviceState(kDeviceStateIdle);
-    }
+    // if (device_state_ == kDeviceStateIdle) {
+    //     if (!protocol_->IsAudioChannelOpened()) {
+    //         SetDeviceState(kDeviceStateConnecting);
+    //         if (!protocol_->OpenAudioChannel()) {
+    //             return;
+    //         }
+    //     }
+    //     // 防止服务器还没拿到设备的UDP fd导致没有声音回复
+    //     auto packet = audio_service_.GetMutePacket();
+    //     protocol_->SendAudio(std::move(packet));
+    //     // 发送唤醒词
+    //     ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
+    //     protocol_->SendWakeWordDetected(wake_word);
+    //     SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);
+    //     // audio_service_.PlaySound(Lang::Sounds::OGG_POPUP);
+    // } else if (device_state_ == kDeviceStateSpeaking) {
+    //     AbortSpeaking(kAbortReasonWakeWordDetected);
+    // } else if (device_state_ == kDeviceStateActivating) {
+    //     SetDeviceState(kDeviceStateIdle);
+    // }
 }
 
 bool Application::CanEnterSleepMode() {

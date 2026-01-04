@@ -5,6 +5,7 @@ set(assets )
 list(APPEND srcs
     vb_transport.c
     vb_procotol.c
+    vb_cmd_evt_table.c
     vb_api.c
     vb_adapter.c
     vb_audio.c
@@ -19,7 +20,6 @@ idf_component_register(SRCS "${srcs}"
                             INCLUDE_DIRS "${incs}"
                             PRIV_INCLUDE_DIRS "${priv_incs}"
                             EMBED_TXTFILES "${assets}"                    
-                            LDFRAGMENTS "link.lf"
                             REQUIRES driver esp_wifi esp_timer)
 
 

@@ -8,7 +8,8 @@ set(SOURCES "audio/audio_codec.cc"
             "audio/codecs/es8388_audio_codec.cc"
             "audio/codecs/es8389_audio_codec.cc"
             "audio/codecs/dummy_audio_codec.cc"
-            "audio/codecs/vb6824_audio_codec.cc"
+            # "audio/codecs/vb6824_audio_codec.cc"
+            "audio/codecs/vb_audio_codec.cc"
             "audio/processors/audio_debugger.cc"
             "led/single_led.cc"
             "led/circular_strip.cc"
@@ -79,7 +80,11 @@ if(NOT BUILTIN_ICON_FONT)
 endif()
 
 if(CONFIG_BOARD_PATH)
-get_filename_component(BOARD_TYPE ${CONFIG_BOARD_PATH} NAME)
+    if(CONFIG_CUSTOM_BOARD_TYPE)
+        set(BOARD_TYPE ${CONFIG_CUSTOM_BOARD_TYPE})
+    else()
+        get_filename_component(BOARD_TYPE ${CONFIG_BOARD_PATH} NAME)
+    endif()
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/boards/${CONFIG_BOARD_PATH}/CMakeLists.txt)
     message(STATUS "include ${CMAKE_CURRENT_SOURCE_DIR}/boards/${CONFIG_BOARD_PATH}/CMakeLists.txt")
     set(BOARD_PATH ${CMAKE_CURRENT_SOURCE_DIR}/boards/${CONFIG_BOARD_PATH})
@@ -202,7 +207,7 @@ if(NOT CONFIG_ASSETS_FIX_PATH STREQUAL "")
 endif()
 
 if(CONFIG_USE_AUDIO_CODEC_ENCODE_OPUS OR CONFIG_USE_AUDIO_CODEC_DECODE_OPUS OR CONFIG_BOARD_TYPE_DOIT_AI_02_KIT_LCD)
-    list(APPEND SOURCES "audio/codecs/vb6824_audio_codec.cc")
+    # list(APPEND SOURCES "audio/codecs/vb6824_audio_codec.cc")
     list(REMOVE_ITEM SOURCES "audio/codecs/box_audio_codec.cc"
                             "audio/codecs/no_audio_codec.cc"
                             "audio/codecs/es8311_audio_codec.cc"

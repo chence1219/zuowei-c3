@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 
+#include <stddef.h>
 #include <stdint.h>
 
 typedef struct {
@@ -12,11 +13,8 @@ typedef struct {
     int (*evt_cb)(uint8_t *data, uint16_t len, void *arg);
 }vb_cmd_evt_t;
 
-#define VB_REGIST_CMD_EVT(command, cb) \
-vb_cmd_evt_t command##_evt __attribute__((section("vb_cmd_evt"), used)) = { \
-        .cmd = command, \
-        .evt_cb = cb, \
-    }
+extern const vb_cmd_evt_t g_vb_cmd_evt_table[];
+extern const size_t g_vb_cmd_evt_table_size;
 
 
 
@@ -60,5 +58,4 @@ int vb_protocol_send_block(uint16_t cmd,
 #endif
 
 #endif // __VB_PROTOCOL_H__
-
 

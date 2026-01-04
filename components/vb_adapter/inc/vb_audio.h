@@ -22,6 +22,12 @@ void vb_audio_init(void);
  */
 void vb_audio_set_volume(uint8_t volume);
 
+
+/**
+ * @brief 获取从机播放音量（0~100） 
+ */
+uint8_t vb_audio_get_volume(void);
+
 /**
  * @brief 从 VB 音频输入队列读取一帧数据
  *

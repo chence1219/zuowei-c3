@@ -118,6 +118,12 @@ config BOARD_PATH
     help
         Board Path
 
+config CUSTOM_BOARD_TYPE
+    string "custom board type"
+    default ""
+    help
+        自定义板型名称，当存在时就直接用这个名称，而不是用文件夹名称
+
 config ASSETS_PATH
     string "Assets Path"
     default "assets"

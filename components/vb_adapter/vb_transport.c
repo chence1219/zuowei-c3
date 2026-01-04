@@ -19,6 +19,8 @@ static const char *TAG = "vb_transport";
 #define UART_BAUD_RATE          CONFIG_VB_UART_BAUD_RATE
 #define UART_TASK_STACK_SIZE     CONFIG_VB_UART_TASK_STACK_SIZE
 
+#define UART_TMP_BUF 1024
+
 static uart_port_t s_uart_port = UART_NUM_MAX;
 static gpio_num_t s_tx_pin = GPIO_NUM_NC;
 static gpio_num_t s_rx_pin = GPIO_NUM_NC;
@@ -33,7 +35,8 @@ static bool s_uart_inited = false;
 static void vb_transport_task(void *arg)
 {
     uart_event_t event;
-    uint8_t temp_buf[512];  // 临时接收缓冲区
+    // uint8_t *temp_buf = (uint8_t *)heap_caps_malloc(UART_TMP_BUF, MALLOC_CAP_SPIRAM);  // 从PSRAM申请临时接收缓冲区
+    uint8_t *temp_buf = (uint8_t *)malloc(UART_TMP_BUF);
 
     while (true) {
         // 等待UART事件
@@ -41,7 +44,7 @@ static void vb_transport_task(void *arg)
             switch (event.type) {
                 case UART_DATA: {
                     // 读取数据
-                    int len = uart_read_bytes(UART_NUM, temp_buf, sizeof(temp_buf), 0);
+                    int len = uart_read_bytes(UART_NUM, temp_buf, UART_TMP_BUF, 0);
                     if (len > 0 && s_rx_cb) {
                         s_rx_cb(temp_buf, len, s_rx_cb_arg);
                     }

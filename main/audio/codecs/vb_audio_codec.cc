@@ -17,7 +17,7 @@ vbAudioCodec::vbAudioCodec(gpio_num_t tx, gpio_num_t rx)
 
     // 初始化适配层（内部含协议/传输），音频回调不需要额外上报
     vb_adapter_init(tx, rx, nullptr, nullptr);
-    vb_audio_init();
+    // vb_audio_init();
 }
 
 

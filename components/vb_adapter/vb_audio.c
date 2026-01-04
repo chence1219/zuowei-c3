@@ -1,5 +1,6 @@
 #include <string.h>
 #include "vb_protocol.h"
+#include "vb_adapter.h"
 #include "vb_cmd.h"
 #include "stdbool.h"
 #include "esp_log.h"
@@ -10,15 +11,33 @@
 
 #define RECV_BUF_LENGTH CONFIG_VB_AUDIO_INPUT_FRAME_LEN*30
 #define SEND_BUF_LENGTH CONFIG_VB_AUDIO_OUTPUT_FRAME_LEN*10
-#define AUDIO_SEND_CHENK_MS      20
+#define AUDIO_SEND_CHENK_MS      10
 
 // 音频输入输出允许
 static bool s_output_enable = false;
 static bool s_input_enable = false;
 
+static uint8_t s_volume = 0;
+
 static RingbufHandle_t s_rx_ringbuffer = NULL;
 static RingbufHandle_t s_tx_ringbuffer = NULL;
 
+
+int _get_volume_handle(uint8_t *data, uint16_t len, void *arg){
+    uint8_t *volume = (uint8_t *)data;
+    s_volume = (uint8_t)(((int)100*volume[0])/30);
+    vb_event_emit(VB_EVT_VOL_CHANGE, &s_volume, sizeof(s_volume));
+    return 0;
+}
+
+uint8_t vb_audio_get_volume(){
+    uint8_t *recv_buf = NULL;
+    uint16_t recv_len = 0;
+    if(vb_protocol_send_block(VB_CMD_GET_VOLUME, NULL, 0, &recv_buf, &recv_len, 100)>=1){
+        s_volume = (uint8_t)(((int)100*recv_buf[0])/30);
+    }
+    return s_volume;
+}
 
 void vb_audio_set_volume(uint8_t volume){
     uint8_t vol = (uint8_t)((int)(volume * 31) / 100);
@@ -27,7 +46,7 @@ void vb_audio_set_volume(uint8_t volume){
 
 uint16_t vb_audio_read(uint8_t *data, uint16_t size){
     size_t item_size = 0;
-    uint32_t timeout = 20;
+    uint32_t timeout = 40;
     uint32_t start_time = xTaskGetTickCount()/portTICK_PERIOD_MS;
     while (s_input_enable)
     {
@@ -69,7 +88,6 @@ int vb_audio_input(uint8_t *data, uint16_t len, void *arg){
     }
     return 0;
 }
-VB_REGIST_CMD_EVT(VB_CMD_RECV_AUDIO, vb_audio_input);
 
 void vb_audio_write(uint8_t *data, uint16_t len){
     if(s_output_enable){
@@ -89,6 +107,7 @@ void vb_audio_enable_output(bool enable){
 #if CONFIG_VB_SEND_USE_TASK
 void __send_task(void *arg) {
     TickType_t last_time = xTaskGetTickCount();
+    vb_audio_get_volume();
     while (1)
     {
         if(s_output_enable){
