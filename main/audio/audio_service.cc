@@ -326,6 +326,9 @@ void AudioService::AudioInputTask() {
                         }
                     }
                     continue;
+                }else{
+                    ESP_LOGE(TAG, "Read audio data failed, samples: %d", samples);
+                    continue;
                 }
             }
 #else
@@ -344,8 +347,7 @@ void AudioService::AudioInputTask() {
         }
 
         ESP_LOGE(TAG, "Should not be here, bits: %lx", bits);
-        // break;
-        continue;
+        break;
     }
 
     ESP_LOGW(TAG, "Audio input task stopped");
