@@ -66,12 +66,15 @@ void McpServer::AddCommonTools() {
     auto backlight = board.GetBacklight();
     if (backlight) {
         AddTool("self.screen.set_brightness",
-            "Set the brightness of the screen.",
+            "Set the brightness of the screen. 最低值为1",
             PropertyList({
-                Property("brightness", kPropertyTypeInteger, 0, 100)
+                Property("brightness", kPropertyTypeInteger, 1, 100)
             }),
             [backlight](const PropertyList& properties) -> ReturnValue {
-                uint8_t brightness = static_cast<uint8_t>(properties["brightness"].value<int>());
+                int8_t brightness = static_cast<int8_t>(properties["brightness"].value<int>());
+                if(brightness<1){
+                    return "{\"error\": \"Brightness must be greater than 0\"}";
+                }
                 backlight->SetBrightness(brightness, true);
                 return true;
             });

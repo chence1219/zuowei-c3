@@ -306,7 +306,7 @@ menu "wifi"
         endchoice
 
         config WIFI_CONFIG_MODE_SSID_PREFIX
-            depends on USE_SOFTAP_NET_CONFIGURING
+            # depends on USE_SOFTAP_NET_CONFIGURING
             string "wifi config mode ssid prefix"
             default "xiaozhi"
 

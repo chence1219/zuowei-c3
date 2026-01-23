@@ -12,6 +12,7 @@
 #include <esp_lvgl_port.h>
 #include <esp_psram.h>
 #include <cstring>
+#include "application.h"
 
 #include "board.h"
 
@@ -20,6 +21,7 @@
 LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
 LV_FONT_DECLARE(BUILTIN_ICON_FONT);
 LV_FONT_DECLARE(font_awesome_30_4);
+LV_FONT_DECLARE(qrcode_sibo);
 
 void LcdDisplay::InitializeLcdThemes() {
     auto text_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_TEXT_FONT);
@@ -932,9 +934,16 @@ void LcdDisplay::SetEmotion(const char* emotion) {
         gif_controller_->Stop();
         gif_controller_.reset();
     }
-    
     if (emoji_image_ == nullptr) {
         return;
+    }
+    if (Application::GetInstance().GetDeviceState() ==
+        kDeviceStateWifiConfiguring) {
+      DisplayLockGuard lock(this);
+      lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_remove_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
+      lv_image_set_src(emoji_image_, &qrcode_sibo);
+      return;
     }
 
     auto emoji_collection = static_cast<LvglTheme*>(current_theme_)->emoji_collection();

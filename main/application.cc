@@ -740,6 +740,28 @@ void Application::Schedule(std::function<void()> callback) {
 // If other tasks need to access the websocket or chat state,
 // they should use Schedule to call this function
 void Application::MainEventLoop() {
+    auto audio_send_queue_ = xQueueCreate(10, sizeof(AudioStreamPacket*));
+    xTaskCreate(
+        [](void *arg) {
+          Application &app = Application::GetInstance();
+          auto audio_send_queue_ = static_cast<QueueHandle_t*>(arg);
+          AudioStreamPacket *raw_packet;
+          while (true) {
+            if (xQueueReceive(*audio_send_queue_, &raw_packet,
+                              pdMS_TO_TICKS(200)) == pdTRUE) {
+              // 重新包装为 unique_ptr 确保自动内存管理
+              std::unique_ptr<AudioStreamPacket> packet(raw_packet);
+              if (app.protocol_ &&
+                  !app.protocol_->SendAudio(std::move(packet))) {
+                ESP_LOGE(TAG, "Failed to send audio packet");
+              }
+              vTaskDelay(pdMS_TO_TICKS(10));
+            } else {
+              vTaskDelay(pdMS_TO_TICKS(60));
+            }
+          }
+        },
+        "audio_send", 1024 * 6, &audio_send_queue_, 10, NULL);
     while (true) {
         auto bits = xEventGroupWaitBits(event_group_, MAIN_EVENT_SCHEDULE |
             MAIN_EVENT_SEND_AUDIO |
@@ -754,10 +776,23 @@ void Application::MainEventLoop() {
         }
 
         if (bits & MAIN_EVENT_SEND_AUDIO) {
+            // while (auto packet = audio_service_.PopPacketFromSendQueue()) {
+            //     if (protocol_ && !protocol_->SendAudio(std::move(packet))) {
+            //         break;
+            //     }
+            // }
             while (auto packet = audio_service_.PopPacketFromSendQueue()) {
-                if (protocol_ && !protocol_->SendAudio(std::move(packet))) {
-                    break;
+              if (audio_send_queue_ != nullptr) {
+                // 释放 unique_ptr 的所有权，获取原始指针
+                AudioStreamPacket *raw_packet = packet.release();
+                BaseType_t result = xQueueSend(audio_send_queue_, &raw_packet,
+                                               pdMS_TO_TICKS(60));
+                if (result != pdTRUE) {
+                  ESP_LOGW(TAG, "Audio send queue full, dropping packet");
+                  // 队列满时需要手动删除内存
+                  delete raw_packet;
                 }
+              }
             }
         }
 
