@@ -50,6 +50,8 @@ void vb_api_set_music_next_prev(uint8_t next);
 
 void vb_api_power_off();
 
+void vb_api_ans_enable(uint8_t en);
+
 void vb_api_set_tone_index(vb_tone_index_t index);
 
 void vb_api_phone_call_answer(bool answer);

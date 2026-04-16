@@ -290,6 +290,11 @@ void vb_api_power_off(){
     return;
 }
 
+void vb_api_ans_enable(uint8_t en){
+    uint8_t enable = en;
+    vb_protocol_send(VB_CMD_SET_ANS, (uint8_t*)&enable, sizeof(enable));
+}
+
 void vb_api_init(){
     
 }

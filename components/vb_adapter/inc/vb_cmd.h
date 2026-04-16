@@ -56,6 +56,7 @@ typedef enum {
     VB_CMD_GET_ALARMS           = 0x0415,  /* 获取闹钟列表 */
     VB_CMD_SET_ALARM            = 0x0315,  /* 设置闹钟 */
     VB_CMD_DEL_ALARM            = 0x0316,  /* 删除闹钟 */
+    VB_CMD_SET_ANS              = 0x0317,  /* 设置ANS */
 } vb_cmd_t;
 
 #ifdef __cplusplus
