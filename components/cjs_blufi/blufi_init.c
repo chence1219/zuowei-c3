@@ -256,13 +256,19 @@ esp_err_t esp_blufi_host_deinit(void)
 {
     esp_err_t ret = ESP_OK;
 
-    esp_blufi_gatt_svr_deinit();
     ret = nimble_port_stop();
     if (ret != ESP_OK)
     {
         return ret;
     }
-    if (ret == 0)
+
+    ret = esp_blufi_gatt_svr_deinit();
+    if (ret != ESP_OK)
+    {
+        return ret;
+    }
+
+    if (ret == ESP_OK)
     {
         esp_nimble_deinit();
     }

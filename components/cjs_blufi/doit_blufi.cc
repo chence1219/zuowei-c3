@@ -251,6 +251,10 @@ extern "C" void doit_blufi_init(void)
 }
 extern "C" void doit_blufi_deinit(void)
 {
+    if (!blufi_is_init) {
+        return;
+    }
+
     blufi_is_init = false;
     esp_blufi_host_deinit();
     esp_blufi_controller_deinit();
