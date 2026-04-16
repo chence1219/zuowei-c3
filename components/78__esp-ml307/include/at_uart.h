@@ -23,6 +23,11 @@
 // 默认配置
 #define UART_NUM                UART_NUM_1
 
+// 缓冲区大小配置
+#define AT_UART_MAX_UNKNOWN_BUFFER_SIZE  16384  // 未知数据的最大缓冲区大小（16KB）
+#define AT_UART_MAX_URC_BUFFER_SIZE      10240   // 已知 URC 的最大缓冲区大小（10KB），用于音频流等大数据
+#define AT_UART_BUFFER_DUMP_SIZE         128     // 缓冲区转储时输出的字节数
+
 // AT命令参数值结构
 struct AtArgumentValue {
     enum class Type { String, Int, Double };

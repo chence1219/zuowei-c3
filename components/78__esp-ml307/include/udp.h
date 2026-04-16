@@ -11,14 +11,21 @@ public:
     virtual bool Connect(const std::string& host, int port) = 0;
     virtual void Disconnect() = 0;
     virtual int Send(const std::string& data) = 0;
+    virtual bool IsConnected() const { return connected_; }
 
     virtual void OnMessage(std::function<void(const std::string& data)> callback) {
         message_callback_ = std::move(callback);
     }
+
+    virtual void OnDisconnected(std::function<void()> callback) {
+        disconnected_callback_ = std::move(callback);
+    }
+
     bool connected() const { return connected_; }
 
 protected:
     std::function<void(const std::string& data)> message_callback_;
+    std::function<void()> disconnected_callback_;
     bool connected_ = false;
 };
 

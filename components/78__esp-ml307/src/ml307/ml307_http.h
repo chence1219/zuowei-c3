@@ -12,6 +12,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <optional>
+#include <atomic>
 
 #define ML307_HTTP_EVENT_INITIALIZED (1 << 0)
 #define ML307_HTTP_EVENT_ERROR (1 << 2)
@@ -41,6 +42,7 @@ private:
     EventGroupHandle_t event_group_handle_;
     std::mutex mutex_;
     std::condition_variable cv_;
+    std::atomic<bool> callback_enabled_{true};
 
     int http_id_ = -1;
     int status_code_ = -1;
@@ -63,10 +65,16 @@ private:
     bool instance_active_ = false;
     bool request_chunked_ = false;
     bool response_chunked_ = false;
+    int pending_total_len_ = 0;
+    int pending_reported_offset_ = 0;
+    int pending_chunk_len_ = 0;
+    size_t pending_hex_chars_expected_ = 0;
+    std::string pending_hex_data_;
 
     bool FetchHeaders();
     void ParseResponseHeaders(const std::string& headers);
     std::string ErrorCodeToString(int error_code);
+    void HandleUrcCallback(const std::string& command, const std::vector<AtArgumentValue>& arguments);
 };
 
 #endif

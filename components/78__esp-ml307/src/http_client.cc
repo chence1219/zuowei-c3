@@ -147,6 +147,7 @@ std::string HttpClient::BuildHttpRequest() {
 }
 
 bool HttpClient::Open(const std::string& method, const std::string& url) {
+    close_in_progress_.store(false, std::memory_order_release);
     method_ = method;
     url_ = url;
 
@@ -217,17 +218,25 @@ bool HttpClient::Open(const std::string& method, const std::string& url) {
 }
 
 void HttpClient::Close() {
-    if (!connected_) {
+    bool expected = false;
+    if (!close_in_progress_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
         return;
     }
 
-    connected_ = false;
-    write_cv_.notify_all();
-    tcp_->Disconnect();
+    {
+        std::lock_guard<std::mutex> lock(close_mutex_);
+        if (connected_) {
+            connected_ = false;
+            write_cv_.notify_all();
+            if (tcp_) {
+                tcp_->Disconnect();
+            }
+            ESP_LOGD(TAG, "HTTP connection closed");
+        }
 
-    eof_ = true;
-    cv_.notify_all();
-    ESP_LOGD(TAG, "HTTP connection closed");
+        eof_ = true;
+        cv_.notify_all();
+    }
 }
 
 void HttpClient::OnTcpData(const std::string& data) {

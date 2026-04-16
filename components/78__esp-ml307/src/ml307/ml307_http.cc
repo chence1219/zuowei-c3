@@ -10,90 +10,56 @@ Ml307Http::Ml307Http(std::shared_ptr<AtUart> at_uart) : at_uart_(at_uart) {
     event_group_handle_ = xEventGroupCreate();
 
     urc_callback_it_ = at_uart_->RegisterUrcCallback([this](const std::string& command, const std::vector<AtArgumentValue>& arguments) {
-        if (command == "MHTTPURC") {
-            if (arguments[1].int_value == http_id_) {
-                auto& type = arguments[0].string_value;
-                if (type == "header") {
-                    eof_ = false;
-                    body_offset_ = 0;
-                    body_.clear();
-                    status_code_ = arguments[2].int_value;
-                    if (arguments.size() >= 5) {
-                        ParseResponseHeaders(at_uart_->DecodeHex(arguments[4].string_value));
-                    } else {
-                        // FIXME: <header> 被分包发送
-                        ESP_LOGE(TAG, "Missing header");
-                    }
-                    xEventGroupSetBits(event_group_handle_, ML307_HTTP_EVENT_HEADERS_RECEIVED);
-                } else if (type == "content") {
-                    // +MHTTPURC: "content",<httpid>,<content_len>,<sum_len>,<cur_len>,<data>
-                    std::string decoded_data;
-                    if (arguments.size() >= 6) {
-                        at_uart_->DecodeHexAppend(decoded_data, arguments[5].string_value.c_str(), arguments[5].string_value.length());
-                    } else {
-                        // FIXME: <data> 被分包发送
-                        ESP_LOGE(TAG, "Missing content");
-                    }
-
-                    std::lock_guard<std::mutex> lock(mutex_);
-                    body_.append(decoded_data);
-
-                    // chunked传输时，EOF由cur_len == 0判断，非 chunked传输时，EOF由content_len判断
-                    if (response_chunked_) {
-                        eof_ = arguments[4].int_value == 0;
-                    } else {
-                        eof_ = arguments[3].int_value >= arguments[2].int_value;
-                    }
-                    
-                    body_offset_ += arguments[4].int_value;
-                    if (arguments[3].int_value > body_offset_) {
-                        ESP_LOGE(TAG, "body_offset_: %u, arguments[3].int_value: %d", body_offset_, arguments[3].int_value);
-                        Close();
-                        return;
-                    }
-                    cv_.notify_one();  // 使用条件变量通知
-                } else if (type == "err") {
-                    error_code_ = arguments[2].int_value;
-                    xEventGroupSetBits(event_group_handle_, ML307_HTTP_EVENT_ERROR);
-                } else if (type == "ind") {
-                    xEventGroupSetBits(event_group_handle_, ML307_HTTP_EVENT_IND);
-                } else {
-                    ESP_LOGE(TAG, "Unknown HTTP event: %s", type.c_str());
-                }
-            }
-        } else if (command == "MHTTPCREATE") {
-            http_id_ = arguments[0].int_value;
-            instance_active_ = true;
-            xEventGroupSetBits(event_group_handle_, ML307_HTTP_EVENT_INITIALIZED);
-        } else if (command == "FIFO_OVERFLOW") {
-            xEventGroupSetBits(event_group_handle_, ML307_HTTP_EVENT_ERROR);
-            Close();
+        if (!this->callback_enabled_.load()) {
+            return;
         }
+        this->HandleUrcCallback(command, arguments);
     });
 }
 
 int Ml307Http::Read(char* buffer, size_t buffer_size) {
     std::unique_lock<std::mutex> lock(mutex_);
-    
+
+    // 先检查条件，避免错过通知
     if (eof_ && body_.empty()) {
         return 0;
     }
-    
-    // 使用条件变量等待数据
+
+    // 如果已有数据，立即返回，不等待
+    if (!body_.empty()) {
+        size_t bytes_to_read = std::min(body_.size(), buffer_size);
+        std::memcpy(buffer, body_.data(), bytes_to_read);
+        body_.erase(0, bytes_to_read);
+        return bytes_to_read;
+    }
+
+    // 等待数据或 EOF
     auto timeout = std::chrono::milliseconds(timeout_ms_);
-    bool received = cv_.wait_for(lock, timeout, [this] { 
-        return !body_.empty() || eof_; 
+    bool received = cv_.wait_for(lock, timeout, [this] {
+        return !body_.empty() || eof_;
     });
-    
+
     if (!received) {
         ESP_LOGE(TAG, "Timeout waiting for HTTP content to be received");
+        // 检查是否真的超时还是通知丢失
+        if (!body_.empty()) {
+            ESP_LOGW(TAG, "Spurious timeout detected - data available");
+            size_t bytes_to_read = std::min(body_.size(), buffer_size);
+            std::memcpy(buffer, body_.data(), bytes_to_read);
+            body_.erase(0, bytes_to_read);
+            return bytes_to_read;
+        }
         return -1;
     }
-    
+
+    if (eof_ && body_.empty()) {
+        return 0;
+    }
+
     size_t bytes_to_read = std::min(body_.size(), buffer_size);
     std::memcpy(buffer, body_.data(), bytes_to_read);
     body_.erase(0, bytes_to_read);
-    
+
     return bytes_to_read;
 }
 
@@ -110,12 +76,161 @@ int Ml307Http::Write(const char* buffer, size_t buffer_size) {
 }
 
 Ml307Http::~Ml307Http() {
+    callback_enabled_ = false;
+    vTaskDelay(pdMS_TO_TICKS(10));
+
     if (instance_active_) {
         Close();
     }
 
     at_uart_->UnregisterUrcCallback(urc_callback_it_);
     vEventGroupDelete(event_group_handle_);
+}
+
+void Ml307Http::HandleUrcCallback(const std::string& command, const std::vector<AtArgumentValue>& arguments) {
+    if (command == "RAW_LINE") {
+        if (arguments.empty() || pending_hex_chars_expected_ == 0) {
+            return;
+        }
+        std::string line = arguments[0].string_value;
+        if (!line.empty() && line.front() == '"') {
+            line.erase(line.begin());
+        }
+        if (!line.empty() && line.back() == '"') {
+            line.pop_back();
+        }
+        for (char c : line) {
+            if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') ||
+                (c >= 'a' && c <= 'f')) {
+                pending_hex_data_.push_back(c);
+            }
+        }
+        if (pending_hex_data_.size() < pending_hex_chars_expected_) {
+            return;
+        }
+
+        std::string hex_payload = pending_hex_data_.substr(0, pending_hex_chars_expected_);
+        pending_hex_data_.erase(0, pending_hex_chars_expected_);
+
+        std::string decoded_data;
+        at_uart_->DecodeHexAppend(decoded_data, hex_payload.c_str(), hex_payload.length());
+
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            body_.append(decoded_data);
+            body_offset_ += decoded_data.size();
+            if (response_chunked_) {
+                eof_ = (pending_chunk_len_ == 0);
+            } else {
+                eof_ = (pending_total_len_ > 0) &&
+                       ((pending_reported_offset_ + pending_chunk_len_) >= pending_total_len_);
+            }
+        }
+        cv_.notify_one();
+
+        pending_total_len_ = 0;
+        pending_reported_offset_ = 0;
+        pending_chunk_len_ = 0;
+        pending_hex_chars_expected_ = 0;
+        pending_hex_data_.clear();
+        return;
+    }
+
+    if (command == "MHTTPURC") {
+        if (arguments.size() < 2) {
+            ESP_LOGE(TAG, "Invalid MHTTPURC args size: %u", (unsigned int)arguments.size());
+            return;
+        }
+        if (arguments[1].int_value == http_id_) {
+            auto& type = arguments[0].string_value;
+            if (type == "header") {
+                {
+                    std::lock_guard<std::mutex> lock(mutex_);
+                    eof_ = false;
+                    body_offset_ = 0;
+                    body_.clear();
+                }
+                response_headers_.clear();
+                response_chunked_ = false;
+                if (arguments.size() >= 3) {
+                    status_code_ = arguments[2].int_value;
+                } else {
+                    status_code_ = -1;
+                }
+                if (arguments.size() >= 5) {
+                    ParseResponseHeaders(at_uart_->DecodeHex(arguments[4].string_value));
+                } else {
+                    ESP_LOGE(TAG, "Missing header");
+                }
+                xEventGroupSetBits(event_group_handle_, ML307_HTTP_EVENT_HEADERS_RECEIVED);
+            } else if (type == "content") {
+                std::string decoded_data;
+                if (arguments.size() >= 6) {
+                    at_uart_->DecodeHexAppend(decoded_data, arguments[5].string_value.c_str(), arguments[5].string_value.length());
+                    pending_total_len_ = 0;
+                    pending_reported_offset_ = 0;
+                    pending_chunk_len_ = 0;
+                    pending_hex_chars_expected_ = 0;
+                    pending_hex_data_.clear();
+                } else if (arguments.size() >= 5) {
+                    pending_total_len_ = arguments[2].int_value;
+                    pending_reported_offset_ = arguments[3].int_value;
+                    pending_chunk_len_ = arguments[4].int_value;
+                    pending_hex_chars_expected_ = (pending_chunk_len_ > 0) ? ((size_t)pending_chunk_len_ * 2U) : 0U;
+                    pending_hex_data_.clear();
+                    if (pending_hex_chars_expected_ > 0) {
+                        ESP_LOGW(TAG, "Content payload moved to RAW_LINE, wait %u hex chars",
+                                 (unsigned int)pending_hex_chars_expected_);
+                        return;
+                    }
+                } else {
+                    ESP_LOGE(TAG, "Missing content, args size: %u", (unsigned int)arguments.size());
+                }
+
+                std::lock_guard<std::mutex> lock(mutex_);
+                body_.append(decoded_data);
+
+                if (response_chunked_) {
+                    eof_ = (arguments.size() >= 5) ? (arguments[4].int_value == 0) : false;
+                } else {
+                    eof_ = (arguments.size() >= 4) ? (arguments[3].int_value >= arguments[2].int_value) : false;
+                }
+
+                body_offset_ += decoded_data.size();
+                if (arguments.size() >= 4 && (size_t)arguments[3].int_value > body_offset_) {
+                    ESP_LOGW(TAG, "Possible stream gap: body_offset=%u, reported=%d",
+                             (unsigned int)body_offset_, arguments[3].int_value);
+                }
+                cv_.notify_one();
+            } else if (type == "err") {
+                error_code_ = (arguments.size() >= 3) ? arguments[2].int_value : 255;
+                xEventGroupSetBits(event_group_handle_, ML307_HTTP_EVENT_ERROR);
+            } else if (type == "ind") {
+                xEventGroupSetBits(event_group_handle_, ML307_HTTP_EVENT_IND);
+            } else {
+                ESP_LOGE(TAG, "Unknown HTTP event: %s", type.c_str());
+            }
+        }
+    } else if (command == "MHTTPCREATE") {
+        if (arguments.empty()) {
+            ESP_LOGE(TAG, "Invalid MHTTPCREATE args");
+            return;
+        }
+        http_id_ = arguments[0].int_value;
+        instance_active_ = true;
+        xEventGroupSetBits(event_group_handle_, ML307_HTTP_EVENT_INITIALIZED);
+    } else if (command == "FIFO_OVERFLOW" ||
+               (command == "SYSTEM_ERROR" && !arguments.empty() &&
+                arguments[0].type == AtArgumentValue::Type::String &&
+                arguments[0].string_value == "FIFO_OVERFLOW")) {
+        error_code_ = 9;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            eof_ = true;
+        }
+        cv_.notify_one();
+        xEventGroupSetBits(event_group_handle_, ML307_HTTP_EVENT_ERROR);
+    }
 }
 
 void Ml307Http::SetHeader(const std::string& key, const std::string& value) {
@@ -156,6 +271,30 @@ void Ml307Http::ParseResponseHeaders(const std::string& headers) {
 }
 
 bool Ml307Http::Open(const std::string& method, const std::string& url) {
+    if (instance_active_) {
+        Close();
+    }
+    xEventGroupClearBits(event_group_handle_,
+                         ML307_HTTP_EVENT_INITIALIZED | ML307_HTTP_EVENT_ERROR |
+                             ML307_HTTP_EVENT_HEADERS_RECEIVED | ML307_HTTP_EVENT_IND);
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        body_.clear();
+        body_offset_ = 0;
+        eof_ = false;
+    }
+    status_code_ = -1;
+    error_code_ = -1;
+    content_length_ = 0;
+    response_headers_.clear();
+    response_chunked_ = false;
+    request_chunked_ = false;
+    pending_total_len_ = 0;
+    pending_reported_offset_ = 0;
+    pending_chunk_len_ = 0;
+    pending_hex_chars_expected_ = 0;
+    pending_hex_data_.clear();
+
     method_ = method;
     url_ = url;
     

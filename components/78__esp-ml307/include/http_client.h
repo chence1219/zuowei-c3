@@ -15,6 +15,7 @@
 #include <memory>
 #include <deque>
 #include <cstring>
+#include <atomic>
 
 #define EC801E_HTTP_EVENT_HEADERS_RECEIVED (1 << 0)
 #define EC801E_HTTP_EVENT_BODY_RECEIVED (1 << 1)
@@ -91,6 +92,8 @@ private:
     std::deque<DataChunk> body_chunks_;
     std::condition_variable write_cv_;
     const size_t MAX_BODY_CHUNKS_SIZE = 8192;
+    std::mutex close_mutex_;
+    std::atomic<bool> close_in_progress_{false};
     
     int status_code_ = -1;
     int timeout_ms_ = 30000;

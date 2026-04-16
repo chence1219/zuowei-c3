@@ -54,6 +54,14 @@ bool EspUdp::Connect(const std::string& host, int port) {
         return false;
     }
 
+    // Set socket receive timeout to detect dead connections
+    struct timeval tv;
+    tv.tv_sec = 30;  // 30-second timeout
+    tv.tv_usec = 0;
+    if (setsockopt(udp_fd_, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+        ESP_LOGW(TAG, "Failed to set socket receive timeout");
+    }
+
     connected_ = true;
 
     xEventGroupClearBits(event_group_, ESP_UDP_EVENT_RECEIVE_TASK_EXIT);
@@ -62,7 +70,11 @@ bool EspUdp::Connect(const std::string& host, int port) {
         udp->ReceiveTask();
         xEventGroupSetBits(udp->event_group_, ESP_UDP_EVENT_RECEIVE_TASK_EXIT);
         vTaskDelete(NULL);
+#ifdef CONFIG_IDF_TARGET_ESP32C2
+    }, "udp_receive", 2048, this, 1, &receive_task_handle_);
+#else
     }, "udp_receive", 4096, this, 1, &receive_task_handle_);
+#endif
     return true;
 }
 
@@ -99,10 +111,14 @@ void EspUdp::ReceiveTask() {
         data.resize(1500);
         int ret = recv(udp_fd_, data.data(), data.size(), 0);
         if (ret <= 0) {
+            ESP_LOGE(TAG, "UDP receive failed: %d, connection lost", ret);
             connected_ = false;
+            if (disconnected_callback_) {
+                disconnected_callback_();
+            }
             break;
         }
-        
+
         if (message_callback_) {
             data.resize(ret);
             message_callback_(data);

@@ -40,6 +40,13 @@ void AtUart::Initialize() {
         return;
     }
 
+    gpio_set_direction(tx_pin_, GPIO_MODE_OUTPUT);
+    gpio_set_direction(rx_pin_, GPIO_MODE_INPUT);
+    gpio_set_level(tx_pin_, 1);
+    gpio_set_level(rx_pin_, 1);
+    gpio_set_pull_mode(tx_pin_, GPIO_PULLUP_ONLY);
+    gpio_set_pull_mode(rx_pin_, GPIO_PULLUP_ONLY);
+
     uart_config_t uart_config = {};
     uart_config.baud_rate = baud_rate_;
     uart_config.data_bits = UART_DATA_8_BITS;
@@ -47,7 +54,7 @@ void AtUart::Initialize() {
     uart_config.stop_bits = UART_STOP_BITS_1;
     uart_config.source_clk = UART_SCLK_DEFAULT;
     
-    ESP_ERROR_CHECK(uart_driver_install(uart_num_, 8192, 0, 100, &event_queue_handle_, ESP_INTR_FLAG_IRAM));
+    ESP_ERROR_CHECK(uart_driver_install(uart_num_, 1024 * 40, 0, 150, &event_queue_handle_, ESP_INTR_FLAG_IRAM));
     ESP_ERROR_CHECK(uart_param_config(uart_num_, &uart_config));
     ESP_ERROR_CHECK(uart_set_pin(uart_num_, tx_pin_, rx_pin_, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
     
@@ -66,13 +73,13 @@ void AtUart::Initialize() {
         auto ml307_at_modem = (AtUart*)arg;
         ml307_at_modem->EventTask();
         vTaskDelete(NULL);
-    }, "modem_event", 4096, this, 15, &event_task_handle_);
+    }, "modem_event", 4096, this, 16, &event_task_handle_);
 
     xTaskCreate([](void* arg) {
         auto ml307_at_modem = (AtUart*)arg;
         ml307_at_modem->ReceiveTask();
         vTaskDelete(NULL);
-    }, "modem_receive", 4096 * 2, this, 15, &receive_task_handle_);
+    }, "modem_receive", 4096 * 3, this, 16, &receive_task_handle_);
     initialized_ = true;
 }
 
@@ -98,8 +105,24 @@ void AtUart::EventTask() {
                 ESP_LOGE(TAG, "buffer full");
                 break;
             case UART_FIFO_OVF:
-                ESP_LOGE(TAG, "FIFO overflow");
-                HandleUrc("FIFO_OVERFLOW", {});
+                ESP_LOGE(TAG, "FIFO overflow - clearing buffer");
+                rx_buffer_.clear();
+                xEventGroupSetBits(event_group_handle_, AT_EVENT_COMMAND_ERROR);
+                {
+                    std::vector<UrcCallback> callbacks_copy;
+                    {
+                        std::lock_guard<std::mutex> lock(mutex_);
+                        callbacks_copy.assign(urc_callbacks_.begin(), urc_callbacks_.end());
+                    }
+                    for (auto& callback : callbacks_copy) {
+                        try {
+                            AtArgumentValue err_value;
+                            err_value.type = AtArgumentValue::Type::String;
+                            err_value.string_value = "FIFO_OVERFLOW";
+                            callback("SYSTEM_ERROR", {err_value});
+                        } catch (...) {}
+                    }
+                }
                 break;
             default:
                 ESP_LOGE(TAG, "unknown event type: %d", event.type);
@@ -131,27 +154,78 @@ static bool is_number(const std::string& s) {
 }
 
 bool AtUart::ParseResponse() {
-    if (wait_for_response_ && rx_buffer_[0] == '>') {
+    if (wait_for_response_ && !rx_buffer_.empty() && rx_buffer_[0] == '>') {
         rx_buffer_.erase(0, 1);
         xEventGroupSetBits(event_group_handle_, AT_EVENT_COMMAND_DONE);
         return true;
     }
 
+    size_t buffer_size = rx_buffer_.size();
     auto end_pos = rx_buffer_.find("\r\n");
     if (end_pos == std::string::npos) {
-        // FIXME: for +MHTTPURC: "ind", missing newline
-        if (rx_buffer_.size() >= 16 && memcmp(rx_buffer_.c_str(), "+MHTTPURC: \"ind\"", 16) == 0) {
-            // Find the end of this line and add \r\n if missing
-            auto next_plus = rx_buffer_.find("+", 1);
-            if (next_plus != std::string::npos) {
-                // Insert \r\n before the next + command
-                rx_buffer_.insert(next_plus, "\r\n");
-            } else {
-                // Append \r\n at the end
-                rx_buffer_.append("\r\n");
+        if (buffer_size > AT_UART_MAX_UNKNOWN_BUFFER_SIZE) {
+            ESP_LOGW(TAG, "Buffer too large (%zu bytes) without CRLF, checking content", buffer_size);
+            ESP_LOG_BUFFER_HEX(TAG, rx_buffer_.c_str(), std::min((size_t)AT_UART_BUFFER_DUMP_SIZE, buffer_size));
+            ESP_LOG_BUFFER_CHAR(TAG, rx_buffer_.c_str(), std::min((size_t)AT_UART_BUFFER_DUMP_SIZE, buffer_size));
+        }
+
+        // 通用解决方案：处理可能缺少换行符的 URC 消息
+        const char* urc_prefixes[] = {"+MHTTPURC", "+MIPURC", "+MIPOPEN"};
+        bool found_prefix = false;
+
+        for (const char* prefix : urc_prefixes) {
+            size_t prefix_len = strlen(prefix);
+            if (buffer_size >= prefix_len && memcmp(rx_buffer_.c_str(), prefix, prefix_len) == 0) {
+                found_prefix = true;
+                ESP_LOGD(TAG, "Found URC prefix %s in buffer (%zu bytes)", prefix, buffer_size);
+                size_t next_cmd_start = std::string::npos;
+
+                // 查找下一个命令的开始位置
+                size_t pos_plus = rx_buffer_.find("\n+", 1);
+                size_t pos_ok = rx_buffer_.find("\nOK");
+                size_t pos_err = rx_buffer_.find("\nERROR");
+
+                // 找到最近的下一个命令标记
+                if (pos_plus != std::string::npos) {
+                    next_cmd_start = pos_plus;
+                }
+                if (pos_ok != std::string::npos && pos_ok < next_cmd_start) {
+                    next_cmd_start = pos_ok;
+                }
+                if (pos_err != std::string::npos && pos_err < next_cmd_start) {
+                    next_cmd_start = pos_err;
+                }
+
+                ESP_LOGD(TAG, "Next command pos: +=%zu, OK=%zu, ERR=%zu",
+                         pos_plus, pos_ok, pos_err);
+
+                if (next_cmd_start != std::string::npos && next_cmd_start > 0) {
+                    // 在下一个命令前插入换行符
+                    rx_buffer_.insert(next_cmd_start, "\r\n");
+                    end_pos = rx_buffer_.find("\r\n");
+                    ESP_LOGD(TAG, "Inserted CRLF at pos %zu, new size: %zu", next_cmd_start, rx_buffer_.size());
+                    break;
+                } else if (buffer_size > prefix_len + AT_UART_MAX_URC_BUFFER_SIZE) {
+                    // 对于大数据流（如音频），达到上限
+                    ESP_LOGW(TAG, "URC buffer too large (%zu bytes) for prefix %s, clearing", buffer_size, prefix);
+                    rx_buffer_.clear();
+                    return false;
+                } else {
+                    // 没找到下一个命令，可能数据还在继续到达
+                    ESP_LOGD(TAG, "No next command found, waiting for more data");
+                    return false;
+                }
             }
-            end_pos = rx_buffer_.find("\r\n");
-        } else {
+        }
+
+        if (!found_prefix && buffer_size > AT_UART_MAX_UNKNOWN_BUFFER_SIZE) {
+            ESP_LOGE(TAG, "Unknown data in buffer (%zu bytes), clearing", buffer_size);
+            ESP_LOG_BUFFER_HEX(TAG, rx_buffer_.c_str(), std::min((size_t)AT_UART_BUFFER_DUMP_SIZE, buffer_size));
+            rx_buffer_.clear();
+            return false;
+        }
+
+        if (end_pos == std::string::npos) {
             return false;
         }
     }
@@ -163,10 +237,6 @@ bool AtUart::ParseResponse() {
     }
 
     ESP_LOGD(TAG, "<< %.64s (%u bytes)", rx_buffer_.substr(0, end_pos).c_str(), end_pos);
-    // print last 64 bytes before end_pos if available
-    // if (end_pos > 64) {
-    //     ESP_LOGI(TAG, "<< LAST: %.64s", rx_buffer_.c_str() + end_pos - 64);
-    // }
 
     // Parse "+CME ERROR: 123,456,789"
     if (rx_buffer_[0] == '+') {
@@ -214,8 +284,16 @@ bool AtUart::ParseResponse() {
         xEventGroupSetBits(event_group_handle_, AT_EVENT_COMMAND_ERROR);
         return true;
     } else {
+        std::string raw_line = rx_buffer_.substr(0, end_pos);
+        std::vector<AtArgumentValue> raw_args;
+        AtArgumentValue raw_arg;
+        raw_arg.type = AtArgumentValue::Type::String;
+        raw_arg.string_value = raw_line;
+        raw_args.push_back(raw_arg);
+        HandleUrc("RAW_LINE", raw_args);
+
         std::lock_guard<std::mutex> lock(mutex_);
-        response_ = rx_buffer_.substr(0, end_pos);
+        response_ = std::move(raw_line);
         rx_buffer_.erase(0, end_pos + 2);
         return true;
     }
@@ -237,14 +315,27 @@ void AtUart::HandleUrc(const std::string& command, const std::vector<AtArgumentV
         return;
     }
 
-    std::lock_guard<std::mutex> lock(mutex_);
-    for (auto& callback : urc_callbacks_) {
-        callback(command, arguments);
+    // 复制回调列表，避免在持有锁的情况下调用回调（防止死锁）
+    std::vector<UrcCallback> callbacks_copy;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        callbacks_copy.assign(urc_callbacks_.begin(), urc_callbacks_.end());
+    }
+
+    // 在锁外调用回调，允许回调内部访问需要锁的函数
+    for (auto& callback : callbacks_copy) {
+        try {
+            callback(command, arguments);
+        } catch (const std::exception& e) {
+            ESP_LOGE(TAG, "URC callback exception: %s", e.what());
+        } catch (...) {
+            ESP_LOGE(TAG, "URC callback unknown exception");
+        }
     }
 }
 
 bool AtUart::DetectBaudRate() {
-    int baud_rates[] = {115200, 921600, 460800, 230400, 57600, 38400, 19200, 9600};
+    int baud_rates[] = {115200, 921600, 460800, 230400, 57600, 38400, 19200, 9600,4800};
     while (true) {
         ESP_LOGI(TAG, "Detecting baud rate...");
         for (size_t i = 0; i < sizeof(baud_rates) / sizeof(baud_rates[0]); i++) {
