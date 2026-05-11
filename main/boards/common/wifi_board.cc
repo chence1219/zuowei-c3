@@ -3,6 +3,7 @@
 #include "display.h"
 #include "application.h"
 #include "esp_lvgl_port.h"
+#include "esp_netif.h"
 #include "esp_wifi.h"
 #include "system_info.h"
 #include "settings.h"
@@ -98,15 +99,37 @@ void WifiBoard::EnterWifiConfigMode() {
     const int MAX_RETRY = 10;
     int retry_count = 0;
     int retry_delay = 10; // 初始重试延迟为10秒
+    bool is_waiting_for_network = true;
     while (true) {
-      wifi_ap_record_t ap_info;
-      esp_err_t result = esp_wifi_sta_get_ap_info(&ap_info);
-      bool is_connected = (result == ESP_OK);
-      // 等待直到已连接wifi
-      if (is_connected == false) {
-        vTaskDelay(pdMS_TO_TICKS(1000));
+    //   wifi_ap_record_t ap_info;
+    //   esp_err_t result = esp_wifi_sta_get_ap_info(&ap_info);
+    //   bool is_connected = (result == ESP_OK);
+    //   // 等待直到已连接wifi
+    //   if (is_connected == false) {
+    //     vTaskDelay(pdMS_TO_TICKS(1000));
+    //     continue;
+    //   }
+      if(is_waiting_for_network == true){
+          ESP_LOGI(TAG, "Waiting for WiFi network connection...");
+      }
+        
+      esp_netif_t *sta_netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+      if (sta_netif == NULL) {
+        // ESP_LOGE(TAG, "Failed to get STA netif");
+        vTaskDelay(pdMS_TO_TICKS(100));
         continue;
       }
+      esp_netif_ip_info_t ip_info;
+      if (esp_netif_get_ip_info(sta_netif, &ip_info) != ESP_OK) {
+        // ESP_LOGE(TAG, "Failed to get IP info");
+        vTaskDelay(pdMS_TO_TICKS(100));
+        continue;
+      }
+      if (ip_info.ip.addr == 0 || (ip_info.ip.addr & 0xFFFF0000) == 0xA9FE0000) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+        continue;
+      }
+      is_waiting_for_network = false;
 
       if (!ota.CheckVersion()) {
         retry_count++;
@@ -128,7 +151,6 @@ void WifiBoard::EnterWifiConfigMode() {
       auto &code = ota.GetActivationCode();
       ESP_LOGI(TAG, "Activation code: %s", code.c_str());
       if (!code.empty()) {
-        doit_blufi_send_code((uint8_t *)code.c_str());
         // This will block the loop until the activation is done or timeout
         for (int i = 0; i < 10; ++i) {
           ESP_LOGI(TAG, "Activating... %d/%d", i + 1, 10);
@@ -138,9 +160,10 @@ void WifiBoard::EnterWifiConfigMode() {
             // MAIN_EVENT_CHECK_NEW_VERSION_DONE);
             break;
           } else if (err == ESP_ERR_TIMEOUT) {
-            vTaskDelay(pdMS_TO_TICKS(3000));
+            vTaskDelay(pdMS_TO_TICKS(2000));
           } else {
-            vTaskDelay(pdMS_TO_TICKS(10000));
+            doit_blufi_send_code((uint8_t *)code.c_str());
+            vTaskDelay(pdMS_TO_TICKS(2000));
           }
           if (application.GetDeviceState() == kDeviceStateIdle) {
             break;
