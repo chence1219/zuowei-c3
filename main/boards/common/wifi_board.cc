@@ -5,6 +5,7 @@
 #include "esp_lvgl_port.h"
 #include "esp_netif.h"
 #include "esp_wifi.h"
+#include "freertos/projdefs.h"
 #include "system_info.h"
 #include "settings.h"
 #include "assets/lang_config.h"
@@ -99,38 +100,26 @@ void WifiBoard::EnterWifiConfigMode() {
     const int MAX_RETRY = 10;
     int retry_count = 0;
     int retry_delay = 10; // 初始重试延迟为10秒
-    bool is_waiting_for_network = true;
+    ESP_LOGI(TAG, "Waiting for WiFi network connection...");
     while (true) {
-    //   wifi_ap_record_t ap_info;
-    //   esp_err_t result = esp_wifi_sta_get_ap_info(&ap_info);
-    //   bool is_connected = (result == ESP_OK);
-    //   // 等待直到已连接wifi
-    //   if (is_connected == false) {
-    //     vTaskDelay(pdMS_TO_TICKS(1000));
-    //     continue;
-    //   }
-      if(is_waiting_for_network == true){
-          ESP_LOGI(TAG, "Waiting for WiFi network connection...");
-      }
-        
       esp_netif_t *sta_netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
       if (sta_netif == NULL) {
-        // ESP_LOGE(TAG, "Failed to get STA netif");
-        vTaskDelay(pdMS_TO_TICKS(100));
+        ESP_LOGE(TAG, "Failed to get STA netif");
+        vTaskDelay(pdMS_TO_TICKS(500));
         continue;
       }
       esp_netif_ip_info_t ip_info;
       if (esp_netif_get_ip_info(sta_netif, &ip_info) != ESP_OK) {
-        // ESP_LOGE(TAG, "Failed to get IP info");
-        vTaskDelay(pdMS_TO_TICKS(100));
+        ESP_LOGE(TAG, "Failed to get IP info");
+        vTaskDelay(pdMS_TO_TICKS(500));
         continue;
       }
       if (ip_info.ip.addr == 0 || (ip_info.ip.addr & 0xFFFF0000) == 0xA9FE0000) {
-        vTaskDelay(pdMS_TO_TICKS(100));
+        ESP_LOGI(TAG, "Waiting for valid IP address...");
+        vTaskDelay(pdMS_TO_TICKS(500));
         continue;
       }
-      is_waiting_for_network = false;
-
+      ota.Activate();
       if (!ota.CheckVersion()) {
         retry_count++;
         if (retry_count >= MAX_RETRY) {
@@ -141,6 +130,7 @@ void WifiBoard::EnterWifiConfigMode() {
 
         ESP_LOGW(TAG, "Check new version failed, retry in %d seconds (%d/%d)",
                  retry_delay, retry_count, MAX_RETRY);
+        ota.Activate();
         for (int i = 0; i < retry_delay; i++) {
           vTaskDelay(pdMS_TO_TICKS(1000));
         }
@@ -151,23 +141,14 @@ void WifiBoard::EnterWifiConfigMode() {
       auto &code = ota.GetActivationCode();
       ESP_LOGI(TAG, "Activation code: %s", code.c_str());
       if (!code.empty()) {
+        doit_blufi_send_code((uint8_t *)code.c_str());
         // This will block the loop until the activation is done or timeout
         for (int i = 0; i < 10; ++i) {
-          ESP_LOGI(TAG, "Activating... %d/%d", i + 1, 10);
-          esp_err_t err = ota.Activate();
-          if (err == ESP_OK) {
-            // xEventGroupSetBits(event_group_,
-            // MAIN_EVENT_CHECK_NEW_VERSION_DONE);
-            break;
-          } else if (err == ESP_ERR_TIMEOUT) {
-            vTaskDelay(pdMS_TO_TICKS(2000));
-          } else {
-            doit_blufi_send_code((uint8_t *)code.c_str());
-            vTaskDelay(pdMS_TO_TICKS(2000));
-          }
           if (application.GetDeviceState() == kDeviceStateIdle) {
             break;
           }
+          ESP_LOGI(TAG, "Waiting for connected to server... %d/%d", i + 1, 10);
+          vTaskDelay(pdMS_TO_TICKS(2000));
         }
       } else {
         uint8_t data[6] = {0};
