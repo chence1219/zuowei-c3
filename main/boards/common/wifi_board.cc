@@ -119,7 +119,7 @@ void WifiBoard::EnterWifiConfigMode() {
         vTaskDelay(pdMS_TO_TICKS(500));
         continue;
       }
-      ota.Activate();
+      esp_err_t err = ota.Activate();
       if (!ota.CheckVersion()) {
         retry_count++;
         if (retry_count >= MAX_RETRY) {
@@ -130,7 +130,7 @@ void WifiBoard::EnterWifiConfigMode() {
 
         ESP_LOGW(TAG, "Check new version failed, retry in %d seconds (%d/%d)",
                  retry_delay, retry_count, MAX_RETRY);
-        ota.Activate();
+        err = ota.Activate();
         for (int i = 0; i < retry_delay; i++) {
           vTaskDelay(pdMS_TO_TICKS(1000));
         }
@@ -141,19 +141,20 @@ void WifiBoard::EnterWifiConfigMode() {
       auto &code = ota.GetActivationCode();
       ESP_LOGI(TAG, "Activation code: %s", code.c_str());
       if (!code.empty()) {
-        doit_blufi_send_code((uint8_t *)code.c_str());
+        err = doit_blufi_send_code((uint8_t *)code.c_str());
         // This will block the loop until the activation is done or timeout
         for (int i = 0; i < 10; ++i) {
-          if (application.GetDeviceState() == kDeviceStateIdle) {
+          if (err == ESP_OK || application.GetDeviceState() == kDeviceStateIdle) {
             break;
           }
-          ESP_LOGI(TAG, "Waiting for connected to server... %d/%d", i + 1, 10);
+          err = doit_blufi_send_code((uint8_t *)code.c_str());
+          ESP_LOGI(TAG, "Waiting for send code... %d/%d", i + 1, 10);
           vTaskDelay(pdMS_TO_TICKS(2000));
         }
       } else {
         uint8_t data[6] = {0};
         memset(data, 0, sizeof(data));
-        doit_blufi_send_code(data);
+        err = doit_blufi_send_code(data);
       }
       
       auto ssid_length = blufi_storage_read_wifi_ssid_length();

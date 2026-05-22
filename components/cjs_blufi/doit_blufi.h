@@ -14,7 +14,7 @@ extern "C"
     void doit_blufi_deinit(void);
     void doit_blufi_start_adv(void);
     void doit_blufi_stop_adv(void);
-    void doit_blufi_send_code(uint8_t *code);
+    esp_err_t doit_blufi_send_code(uint8_t *code);
     int esp_blufi_gap_register_callback(void);
     esp_err_t esp_blufi_host_init(void);
     esp_err_t esp_blufi_host_and_cb_init(esp_blufi_callbacks_t *callbacks);

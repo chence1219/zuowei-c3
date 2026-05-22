@@ -259,13 +259,14 @@ extern "C" void doit_blufi_deinit(void)
     esp_blufi_host_deinit();
     esp_blufi_controller_deinit();
 }
-extern "C" void doit_blufi_send_code(uint8_t *code){
+extern "C" esp_err_t doit_blufi_send_code(uint8_t *code){
     if(doit_blufi_is_init()) {
         ESP_LOGI(TAG, "doit_blufi_send_code: %02x %02x %02x %02x %02x %02x", code[0], code[1], code[2], code[3], code[4], code[5]);
-        esp_blufi_send_custom_data((uint8_t *)code, 6);
+        return esp_blufi_send_custom_data((uint8_t *)code, 6);
     }
     else{
         ESP_LOGW(TAG,"blufi not init");
+        return ESP_FAIL;
     }
     
 }
