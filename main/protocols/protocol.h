@@ -12,6 +12,7 @@ struct AudioStreamPacket {
     int frame_duration = 0;
     uint32_t timestamp = 0;
     std::vector<uint8_t> payload;
+    int64_t nertc_playback_start_timestamp_ms = 0;
 };
 
 struct BinaryProtocol2 {
@@ -68,11 +69,17 @@ public:
     virtual void CloseAudioChannel() = 0;
     virtual bool IsAudioChannelOpened() const = 0;
     virtual bool SendAudio(std::unique_ptr<AudioStreamPacket> packet) = 0;
+    virtual void SendAecReferenceAudio(std::unique_ptr<AudioStreamPacket> packet) {}
     virtual void SendWakeWordDetected(const std::string& wake_word);
     virtual void SendStartListening(ListeningMode mode);
     virtual void SendStopListening();
     virtual void SendAbortSpeaking(AbortReason reason);
     virtual void SendMcpMessage(const std::string& message);
+    virtual void SetAISleep() {}
+    virtual void SendTTSText(const std::string& text, int interrupt_mode, bool add_context) {}
+    virtual void SendLlmText(const std::string& text) {}
+    virtual void SendLlmImage(const char* img_url, const int32_t img_len, const int compress_type, const std::string& text, int img_type) {}
+    virtual void TestDestroy() {}
     virtual bool SendText(const std::string& text) = 0;
 
 protected:
@@ -86,6 +93,7 @@ protected:
 
     int server_sample_rate_ = 24000;
     int server_frame_duration_ = 60;
+    int samples_per_channel_ = 480;
     bool error_occurred_ = false;
     std::string session_id_;
     std::chrono::time_point<std::chrono::steady_clock> last_incoming_time_;

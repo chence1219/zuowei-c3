@@ -45,6 +45,10 @@ std::string Board::GenerateUuid() {
     return std::string(uuid_str);
 }
 
+std::string Board::GetBoardName() {
+    return SystemInfo::GetMacAddress();
+}
+
 bool Board::GetBatteryLevel(int &level, bool& charging, bool& discharging) {
     return false;
 }
