@@ -1,0 +1,13 @@
+dependencies:
+  # ESP-Hosted for P4 WiFi support (P4 uses external C6 as WiFi module)
+  espressif/esp_hosted:
+    version: 2.0.17
+    rules:
+    - if: target in [esp32p4]
+  espressif/esp_wifi_remote:
+    version: '*'
+    rules:
+    - if: target in [esp32p4]
+
+  idf:
+    version: '>=5.4.0'

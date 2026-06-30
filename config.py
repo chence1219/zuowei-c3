@@ -54,9 +54,7 @@ def flash_bin(port, write_at, bin_path, target):
 def flash_blufi(port, target):
     """烧录蓝牙配网固件"""
     app_name="blufi_app.bin"
-    if target == "esp32-c3":
-        app_name="blufi_app_c3.bin"
-    command = f"python -m esptool --chip {target} -p {port} write_flash 0x520000 third_party/blufi_app/bin/{app_name}"
+    command = f"python -m esptool --chip {target} -p {port} write_flash 0x4A0000 third_party/blufi_app/bin/{app_name}"
     print(f"Running blufi flash command: {command}")
     try:
         subprocess.run(command, shell=True, check=True)
@@ -128,10 +126,10 @@ def main():
 
 if __name__ == "__main__":
     main()
-    # command = f"git checkout local_config/config.json"
-    # print(f"Running git checkout command: {command}")
-    # try:
-    #     subprocess.run(command, shell=True, check=True)
-    # except subprocess.CalledProcessError as e:
-    #     print(f"Error: Failed to checkout config file. {e}")
-    #     sys.exit(1)
+    command = f"git checkout local_config/config.json"
+    print(f"Running git checkout command: {command}")
+    try:
+        subprocess.run(command, shell=True, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Error: Failed to checkout config file. {e}")
+        sys.exit(1)

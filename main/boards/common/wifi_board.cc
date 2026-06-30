@@ -21,7 +21,9 @@
 #include <ssid_manager.h>
 #include "afsk_demod.h"
 #include "widgets/image/lv_image.h"
-
+#ifdef CONFIG_CONNECTION_TYPE_NERTC
+    #include "nertc_protocol.h"
+#endif
 #ifdef CONFIG_USE_BLUFI_NET_CONFIGURING
 #include "esp_mac.h"
 #include "doit_blufi.h"
@@ -44,6 +46,19 @@ std::string WifiBoard::GetBoardType() {
 }
 
 void WifiBoard::EnterWifiConfigMode() {
+#if CONFIG_CONNECTION_TYPE_NERTC 
+    if (NeRtcProtocol::MountFileSystem()) {
+        auto* config_json = NeRtcProtocol::ReadConfigJson();
+        if(config_json) {
+            cJSON* blufi_wifi = cJSON_GetObjectItem(config_json, "blufi_wifi");
+            if (blufi_wifi && cJSON_IsBool(blufi_wifi) && blufi_wifi->valueint) {
+                StartBlufiMode(true);
+            }
+        }
+    }
+#endif
+
+
 #ifdef CONFIG_USE_BLUFI_NET_CONFIGURING
   auto &application = Application::GetInstance();
   application.SetDeviceState(kDeviceStateWifiConfiguring);
