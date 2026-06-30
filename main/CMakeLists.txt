@@ -62,6 +62,15 @@ if(EXTERNAL_SOURCE_PATH)
     list(APPEND INCLUDE_DIRS ${EXTERNAL_SOURCE_PATH}/../)
 endif()
 
+if(CONFIG_USE_MUSIC_PLAYER)
+    list(APPEND INCLUDE_DIRS "music_player")
+    list(APPEND SOURCES "music_player/mp3_online_player.cc")
+    list(APPEND SOURCES "music_player/music_player.cc")
+    list(APPEND SOURCES "music_player/music_player_view.c")
+    set_source_files_properties("music_player/music_player_view.c" PROPERTIES LANGUAGE CXX)
+    # list(APPEND SOURCES "music_player/music_player_api.c")
+endif()
+
 idf_build_get_property(build_components BUILD_COMPONENTS)
 # Function to find component dynamically by pattern
 function(find_component_by_pattern PATTERN COMPONENT_VAR PATH_VAR)

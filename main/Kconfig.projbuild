@@ -2,7 +2,7 @@ menu "Xiaozhi Assistant"
 
 config OTA_URL
     string "Default OTA URL"
-    default "https://api.tenclass.net/xiaozhi/ota/"
+    default "https://nrtc.netease.im/v1/ota"
     help
         The application will access this URL to check for new firmwares and server address.
 
@@ -51,6 +51,18 @@ choice
     config FLASH_CUSTOM_ASSETS
         bool "Flash Custom Assets"
 endchoice
+
+config CONNECTION_TYPE_NERTC
+    bool "Enanle NERTC Protocol"
+    default y
+    help
+        使用网易云信传输
+
+config USE_MUSIC_PLAYER
+    bool "Enanle NERTC Protocol"
+    default y
+    help
+        网易云音乐播放
 
 config CUSTOM_ASSETS_FILE
     depends on FLASH_CUSTOM_ASSETS

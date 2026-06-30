@@ -5,6 +5,9 @@
 #include "audio_codec.h"
 #include "mqtt_protocol.h"
 #include "websocket_protocol.h"
+#if CONFIG_CONNECTION_TYPE_NERTC
+#include "nertc_protocol.h"
+#endif
 #include "assets/lang_config.h"
 #include "mcp_server.h"
 #include "assets.h"
@@ -356,6 +359,10 @@ void Application::DismissAlert() {
 }
 
 void Application::ToggleChatState() {
+#ifdef CONFIG_USE_MUSIC_PLAYER
+    MusicPlayer::GetInstance().InterruptPlay();
+#endif
+
     if (device_state_ == kDeviceStateActivating) {
         SetDeviceState(kDeviceStateIdle);
         return;
@@ -509,6 +516,12 @@ void Application::Start() {
     Ota ota;
     CheckNewVersion(ota);
 
+#ifdef CONFIG_USE_MUSIC_PLAYER
+    if (ota.GetSupportAirMusicPlayer() && (Board::GetInstance().GetBoardType() != "ml307" || ota.GetSupportAirMusicIn4G())){
+        MusicPlayer::GetInstance().Initialize(codec, &audio_service_);
+    }
+#endif
+
     // Initialize the protocol
     display->SetStatus(Lang::Strings::LOADING_PROTOCOL);
 
@@ -517,7 +530,9 @@ void Application::Start() {
     mcp_server.AddCommonTools();
     mcp_server.AddUserOnlyTools();
 
-#ifdef CONFIG_CONNECTION_FORCE_FIXED_WEBSOCKET
+#if CONFIG_CONNECTION_TYPE_NERTC
+    protocol_ = std::make_unique<NeRtcProtocol>();
+#elif CONFIG_CONNECTION_FORCE_FIXED_WEBSOCKET
     protocol_ = std::make_unique<WebsocketProtocol>();
 #else
     if (ota.HasMqttConfig()) {
@@ -643,7 +658,15 @@ void Application::Start() {
                     Schedule([this]() {
                         Reboot();
                     });
-                } else {
+                } 
+#if CONFIG_CONNECTION_TYPE_NERTC
+                else if (strcmp(command->valuestring, "sleep") == 0) {
+                    Schedule([this]() {
+                        ai_sleep_ = true;
+                    });
+                } 
+#endif                
+                else {
                     ESP_LOGW(TAG, "Unknown system command: %s", command->valuestring);
                 }
             }
@@ -663,6 +686,26 @@ void Application::Start() {
             if (cJSON_IsObject(payload)) {
                 Schedule([this, display, payload_str = std::string(cJSON_PrintUnformatted(payload))]() {
                     display->SetChatMessage("system", payload_str.c_str());
+                });
+            } else {
+                ESP_LOGW(TAG, "Invalid custom message format: missing payload");
+            }
+#endif
+        } 
+        else if (strcmp(type->valuestring, "updateSongList") == 0) {
+#ifdef CONFIG_USE_MUSIC_PLAYER
+            auto song_list_str = cJSON_GetObjectItem(root, "songList");
+            ESP_LOGI(TAG, "Received custom message: %s", cJSON_PrintUnformatted(root));
+            if (cJSON_IsString(song_list_str)) {
+                std::string song_list = song_list_str->valuestring;
+                
+                Schedule([this, song_list]() {
+                    std::vector<MusicInfo> searched_song_list;
+                    bool play_now = false;
+                    ParseSongListFromJson(song_list, searched_song_list, play_now);
+                    if(searched_song_list.size() > 0){
+                        MusicPlayer::GetInstance().UpdateAirMusicListAndPlay(searched_song_list, play_now);
+                    }
                 });
             } else {
                 ESP_LOGW(TAG, "Invalid custom message format: missing payload");
@@ -832,6 +875,10 @@ void Application::MainEventLoop() {
 }
 
 void Application::OnWakeWordDetected() {
+#ifdef CONFIG_USE_MUSIC_PLAYER
+    MusicPlayer::GetInstance().InterruptPlay();
+#endif
+
     if (!protocol_) {
         return;
     }
@@ -983,7 +1030,7 @@ bool Application::UpgradeFirmware(Ota& ota, const std::string& url) {
     audio_service_.Stop();
     vTaskDelay(pdMS_TO_TICKS(1000));
 
-    bool upgrade_success = ota.StartUpgradeFromUrl(upgrade_url, [display](int progress, size_t speed) {
+    bool upgrade_success = ota.StartUpgrade([display](int progress, size_t speed) {
         std::thread([display, progress, speed]() {
             char buffer[32];
             snprintf(buffer, sizeof(buffer), "%d%% %uKB/s", progress, speed / 1024);
@@ -1294,3 +1341,78 @@ void Application::SendChatText(const std::string &text) {
       },
       "send_chat_text", 1024 * 4, (void*)text_str, 5, NULL);
 }
+
+#if CONFIG_CONNECTION_TYPE_NERTC
+void Application::SetAISleep() {
+    if (!protocol_) {
+        ESP_LOGE(TAG, "SetAISleep: Protocol not initialized");
+        return;
+    }
+
+    protocol_->SetAISleep();
+}
+
+void Application::ReadNertcConfig() {
+    NeRtcLocalConfig local_config;
+    if (NeRtcProtocol::LoadLocalConfig(local_config)) {
+        appkey_ = local_config.appkey;
+    } else {
+        ESP_LOGW(TAG, "no local config file");
+    }
+}
+
+void Application::ParseSongListFromJson(const std::string& json, std::vector<MusicInfo>& out_list, bool& play_now){
+    out_list.clear();
+    cJSON* root = cJSON_Parse(json.c_str());
+    if (!root) {
+        ESP_LOGE(TAG, "ParseSongListFromJson: Failed to parse JSON");
+        return;
+    }
+
+    cJSON* need_confirm = cJSON_GetObjectItem(root, "need_confirm");
+    if(cJSON_IsBool(need_confirm) && need_confirm->valueint == 0){
+        play_now = true;
+    }
+    auto song_list = cJSON_GetObjectItem(root, "song_list");
+    if (!cJSON_IsArray(song_list) || cJSON_GetArraySize(song_list) == 0) {
+        ESP_LOGE(TAG, "ParseSongListFromJson: 'song_list' is not an array");
+        cJSON_Delete(root);
+        return;
+    }
+    out_list.resize(cJSON_GetArraySize(song_list));
+    for (int i = 0; i < cJSON_GetArraySize(song_list); ++i) {
+        cJSON* song_item = cJSON_GetArrayItem(song_list, i);
+        if (cJSON_IsObject(song_item)) {
+            MusicInfo music_info;
+            cJSON* name = cJSON_GetObjectItem(song_item, "name");
+            cJSON* uri = cJSON_GetObjectItem(song_item, "url");
+            cJSON* album = cJSON_GetObjectItem(song_item, "album");
+            cJSON* artist = cJSON_GetObjectItem(song_item, "artist");
+            cJSON* index = cJSON_GetObjectItem(song_item, "index");
+            if(!cJSON_IsNumber(index) || index->valueint >= cJSON_GetArraySize(song_list)){
+                ESP_LOGI(TAG, "ParseSongListFromJson: invalid song index");
+                cJSON_Delete(root);
+                return;
+            }
+            if (cJSON_IsString(name)) {
+                music_info.name = name->valuestring;
+            }
+            if (cJSON_IsString(uri)) {
+                music_info.uri = uri->valuestring;
+            }
+            if (cJSON_IsString(album)) {
+                music_info.album = album->valuestring;
+            }
+            if (cJSON_IsString(artist)) {
+                music_info.artist = artist->valuestring;
+            }
+            out_list[index->valueint] = music_info;
+            ESP_LOGI(TAG, "ParseSongListFromJson: Parsed song - Name: %s, URI: %s, Album: %s, Artist: %s", 
+                     music_info.name.c_str(), music_info.uri.c_str(), music_info.album.c_str(), music_info.artist.c_str());
+        }
+    }
+    cJSON_Delete(root);
+}
+
+
+#endif

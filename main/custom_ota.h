@@ -12,8 +12,8 @@ public:
     CustomOta();
     ~CustomOta();
 
-    virtual bool CheckVersion() override;
-    virtual std::string GetCheckVersionUrl() override;
+    virtual esp_err_t CheckVersion();
+    virtual std::string GetCheckVersionUrl();
     bool forced() { return forced_; };
 private:
     bool forced_ = false;

@@ -97,6 +97,7 @@ public:
     bool IsIdle();
     bool IsWakeWordRunning() const { return xEventGroupGetBits(event_group_) & AS_EVENT_WAKE_WORD_RUNNING; }
     bool IsAudioProcessorRunning() const { return xEventGroupGetBits(event_group_) & AS_EVENT_AUDIO_PROCESSOR_RUNNING; }
+    void UpdateLastOutputTime() { last_output_time_ =  std::chrono::steady_clock::now();}
     bool IsAfeWakeWord();
 
     void EnableWakeWordDetection(bool enable);

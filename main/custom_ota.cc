@@ -33,7 +33,7 @@ std::string CustomOta::GetCheckVersionUrl() {
 #endif
 }
 
-bool CustomOta::CheckVersion() {
+esp_err_t CustomOta::CheckVersion() {
     auto& board = Board::GetInstance();
     auto app_desc = esp_app_get_description();
 
@@ -44,7 +44,7 @@ bool CustomOta::CheckVersion() {
     std::string url = GetCheckVersionUrl();
     if (url.length() < 10) {
         ESP_LOGE(TAG, "Check version URL is not properly set");
-        return false;
+        return ESP_ERR_INVALID_ARG;
     }
 
     auto http = std::unique_ptr<Http>(SetupHttp());
@@ -55,13 +55,13 @@ bool CustomOta::CheckVersion() {
 
     if (!http->Open(method, url)) {
         ESP_LOGE(TAG, "Failed to open HTTP connection");
-        return false;
+        return ESP_ERR_INVALID_ARG;
     }
 
     auto status_code = http->GetStatusCode();
     if (status_code != 200) {
         ESP_LOGE(TAG, "Failed to check version, status code: %d", status_code);
-        return false;
+        return ESP_ERR_INVALID_ARG;
     }
 
     data = http->ReadAll();
@@ -74,7 +74,7 @@ bool CustomOta::CheckVersion() {
     cJSON *root = cJSON_Parse(data.c_str());
     if (root == NULL) {
         ESP_LOGE(TAG, "Failed to parse JSON response");
-        return false;
+        return ESP_ERR_INVALID_ARG;
     }
 
     has_new_version_ = false;
@@ -113,5 +113,5 @@ bool CustomOta::CheckVersion() {
     }
 
     cJSON_Delete(root);
-    return true;
+    return ESP_OK;
 }

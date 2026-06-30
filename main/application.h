@@ -16,7 +16,7 @@
 #include "custom_ota.h"
 #include "audio_service.h"
 #include "device_state_event.h"
-
+#include "music_player/music_player.h"
 
 #define MAIN_EVENT_SCHEDULE (1 << 0)
 #define MAIN_EVENT_SEND_AUDIO (1 << 1)
@@ -86,6 +86,16 @@ public:
 
     void SendChatText(const std::string &text);
 
+#if CONFIG_CONNECTION_TYPE_NERTC
+    // ai sleep
+    void SetAISleep();
+
+    void ReadNertcConfig();
+    std::string GetAppkey() const { return appkey_; }
+
+    static void ParseSongListFromJson(const std::string& json, std::vector<MusicInfo>& out_list, bool& play_now);
+#endif
+
 private:
     Application();
     ~Application();
@@ -109,6 +119,12 @@ private:
 
 #ifdef CONFIG_USE_CUSTOM_OTA
     bool custom_ota_task_is_start = false;
+#endif
+
+#if CONFIG_CONNECTION_TYPE_NERTC
+    // ai sleep
+    bool ai_sleep_ = false;
+    std::string appkey_;
 #endif
 
     void OnWakeWordDetected();
