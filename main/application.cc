@@ -394,6 +394,10 @@ void Application::ToggleChatState() {
             }
 
             SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);
+
+#if CONFIG_CONNECTION_TYPE_NERTC
+            ai_sleep_ = false;
+#endif
         });
     } else if (device_state_ == kDeviceStateSpeaking) {
         Schedule([this]() {
@@ -432,6 +436,10 @@ void Application::StartListening() {
 
             SetListeningMode(kListeningModeManualStop);
         });
+
+#if CONFIG_CONNECTION_TYPE_NERTC
+            ai_sleep_ = false;
+#endif
     } else if (device_state_ == kDeviceStateSpeaking) {
         Schedule([this]() {
             AbortSpeaking(kAbortReasonNone);
@@ -870,6 +878,17 @@ void Application::MainEventLoop() {
                 // SystemInfo::PrintTaskList();
                 SystemInfo::PrintHeapStats();
             }
+#if CONFIG_CONNECTION_TYPE_NERTC
+            if (ai_sleep_ && (GetDeviceState() == kDeviceStateIdle || GetDeviceState() == kDeviceStateListening)) {
+                Schedule([this]() {
+                    ESP_LOGI(TAG, "AI sleep mode, close the audio channel");
+                    if (protocol_) {
+                        protocol_->CloseAudioChannel();
+                    }
+                    ai_sleep_ = false;
+                });
+            }
+#endif
         }
     }
 }
@@ -892,6 +911,10 @@ void Application::OnWakeWordDetected() {
                 audio_service_.EnableWakeWordDetection(true);
                 return;
             }
+
+#if CONFIG_CONNECTION_TYPE_NERTC
+            ai_sleep_ = false;
+#endif
         }
 
         auto wake_word = audio_service_.GetLastWakeWord();
