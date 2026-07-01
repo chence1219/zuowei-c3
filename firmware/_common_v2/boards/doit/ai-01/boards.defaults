@@ -1,0 +1,2 @@
+CONFIG_BOARD_PATH="../../firmware/_common/boards/doit/ai-01"
+CONFIG_ASSETS_FIX_PATH="../firmware/_common/assets_fix"

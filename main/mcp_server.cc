@@ -458,13 +458,17 @@ void McpServer::ReplyError(int id, const std::string& message) {
 }
 
 void McpServer::GetToolsList(int id, const std::string& cursor, bool list_user_only_tools) {
-    const int max_payload_size = 8000;
+#if defined(CONFIG_IDF_TARGET_ESP32C3) || defined(CONFIG_IDF_TARGET_ESP32C2)
+    const int max_payload_size = 1200;
+#else
+    const int max_payload_size = 2000;
+#endif
     std::string json = "{\"tools\":[";
-    
+
     bool found_cursor = cursor.empty();
     auto it = tools_.begin();
     std::string next_cursor = "";
-    
+
     while (it != tools_.end()) {
         // 如果我们还没有找到起始位置，继续搜索
         if (!found_cursor) {
@@ -484,8 +488,18 @@ void McpServer::GetToolsList(int id, const std::string& cursor, bool list_user_o
         // 添加tool前检查大小
         std::string tool_json = (*it)->to_json() + ",";
         if (json.length() + tool_json.length() + 30 > max_payload_size) {
-            // 如果添加这个tool会超出大小限制，设置next_cursor并退出循环
-            next_cursor = (*it)->name();
+            if (json.back() == '[') {
+                // 单条 tool 自身超过分页阈值时，仍然单独返回这一条，
+                // 否则会在同一个 cursor 上反复报错，分页无法继续推进。
+                json += tool_json;
+                ++it;
+                if (it != tools_.end()) {
+                    next_cursor = (*it)->name();
+                }
+            } else {
+                // 如果添加这个tool会超出大小限制，设置next_cursor并退出循环
+                next_cursor = (*it)->name();
+            }
             break;
         }
         

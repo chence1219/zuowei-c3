@@ -71,6 +71,16 @@ private:
 };
 
 class NoDisplay : public Display {
+public:
+    void SetStatus(const char* status) override {}
+    void ShowNotification(const char* notification, int duration_ms = 3000) override {}
+    void ShowNotification(const std::string &notification, int duration_ms = 3000) override {}
+    void SetEmotion(const char* emotion) override {}
+    void SetChatMessage(const char* role, const char* content) override {}
+    void SetTheme(Theme* theme) override {}
+    void UpdateStatusBar(bool update_all = false) override {}
+    void SetPowerSaveMode(bool on) override {}
+
 private:
     virtual bool Lock(int timeout_ms = 0) override {
         return true;
